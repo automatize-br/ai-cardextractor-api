@@ -14,6 +14,9 @@ export interface RolloutMetrics {
   validPacks: number
   validRate: number
   shadowPacks: number
+  /** Cards que precisaram do modelo (título ambíguo) e quantos tiveram escolha shadow. */
+  pendingCards: number
+  shadowCards: number
   shadowCoverage: number
   modelDecisions: number
   avgConfidence: number
@@ -77,6 +80,8 @@ export function computeRolloutMetrics(
   const valid = unique.filter(isValidPack)
 
   let shadowPacks = 0
+  let pendingCards = 0
+  let shadowCards = 0
   let modelDecisions = 0
   let confidenceSum = 0
   let lowConfidence = 0
@@ -90,6 +95,13 @@ export function computeRolloutMetrics(
     if (shadow.length > 0) shadowPacks += 1
 
     const decisions = new Map(replay.decisions.map((decision) => [decision.cardId, decision]))
+    const pendingIds = new Set<string>()
+    for (const decision of replay.decisions) {
+      if (decision.reviewReasons.includes('ambiguous_title')) pendingIds.add(decision.cardId)
+    }
+    for (const choice of shadow) pendingIds.add(choice.cardId)
+    pendingCards += pendingIds.size
+    shadowCards += shadow.filter((choice) => choice.titleId !== null).length
     for (const choice of shadow) {
       if (!choice.titleId) continue
       modelDecisions += 1
@@ -110,7 +122,11 @@ export function computeRolloutMetrics(
     validPacks: valid.length,
     validRate: packs === 0 ? 0 : valid.length / packs,
     shadowPacks,
-    shadowCoverage: packs === 0 ? 0 : shadowPacks / packs,
+    pendingCards,
+    shadowCards,
+    // Sem nenhum card pendente não há o que cobrir (gate vacuamente satisfeito).
+    shadowCoverage:
+      pendingCards === 0 ? (packs === 0 ? 0 : 1) : Math.min(1, shadowCards / pendingCards),
     modelDecisions,
     avgConfidence: modelDecisions === 0 ? 0 : confidenceSum / modelDecisions,
     lowConfidenceRate: modelDecisions === 0 ? 0 : lowConfidence / modelDecisions,

@@ -1,6 +1,6 @@
 # Plano de Implementação — `ai-extractor-api`
 
-**Versão:** 1.0.10
+**Versão:** 1.0.11
 **Criado em:** 2026-10-21
 **Última atualização:** 2026-10-21
 **Status:** Em implementação
@@ -15,6 +15,7 @@
 | 2026-10-21 | 1.0.0 | Criação do plano. Define estrutura de pastas espelhando `../../API`, contrato, providers, persistência, scripts e fases. |
 | 2026-10-21 | 1.0.1 | Serviço renomeado de `ai-api` para `ai-extractor-api`; este plano passou a viver em `ai-extractor-api/docs/`. |
 | 2026-10-21 | 1.0.2 | Porta padrão alterada de 3010 para 5555 (evita conflito com outros serviços locais). |
+| 2026-10-22 | 1.0.11 | `rollout:report`: cobertura shadow por card pendente (título ambíguo) em vez de por pack; gate vacuamente satisfeito quando não há pendências. |
 | 2026-10-21 | 1.0.10 | F7: relatório de rollout (`npm run rollout:report`) sobre os replays, com gates de packs/validade/cobertura shadow/p95; replay passou a registrar `fallbackReason`. Kill switch operacional fica no proxy admin da API. |
 | 2026-10-21 | 1.0.9 | F6: replay opt-in (`AI_REPLAY_PATH`) com pack+decisões+shadow; `npm run dataset:build` gera train/valid/test (messages SFT), `test.eval.jsonl` e `stats.json`, com split por marketplace (fallback hash), rótulo humano > shadow > modelo; `training/train_qlora.py` com engine `hf` (Windows/CPU) e `sft` (Linux/GPU), máscara só na resposta e `--merge`. 8 testes novos. |
 | 2026-10-21 | 1.0.8 | F5: provider de visão OPCIONAL (`VISION_PROVIDER=off|fake|http`) que reordena as imagens já extraídas por score CLIP/SigLIP antes da heurística (contrato `POST {VISION_HTTP_URL}/score` → `{scores}`); best-effort, nunca cria imagem. HTTP provider passou a usar o id do catálogo quando `LLM_HTTP_MODEL` está vazio. 14 testes novos. |

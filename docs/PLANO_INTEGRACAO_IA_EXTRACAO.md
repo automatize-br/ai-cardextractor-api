@@ -1,6 +1,6 @@
 # Plano de Integração — IA de Extração de Ofertas
 
-**Versão:** 1.0.15
+**Versão:** 1.0.16
 **Criado em:** 2026-10-21
 **Última atualização:** 2026-10-21
 **Status:** Concluído (F1–F7)
@@ -17,6 +17,7 @@
 | 2026-10-21 | 1.0.1 | Registrada a criação do microserviço `ai-extractor-api` (F0/F1) e o contrato de adjudicação implementado. |
 | 2026-10-21 | 1.0.2 | Repositório renomeado para `ai-extractor-api`; planos e ADR movidos para `ai-extractor-api/docs/`. Referências de caminho atualizadas. |
 | 2026-10-21 | 1.0.3 | Porta padrão do serviço definida em 5555 para não bloquear a operação local. |
+| 2026-10-22 | 1.0.16 | Cobertura shadow passou a ser medida por **card pendente** (título ambíguo), não por pack; sem cards pendentes o gate é vacuamente satisfeito. Achado no teste real: 18 cards ambíguos estouram o orçamento de 12s em CPU; com 30s o assist conclui em 17,6s. |
 | 2026-10-21 | 1.0.15 | F7: kill switch em runtime no painel (`PUT /admin/ai-extractor/mode`, override em memória com auditoria; `env` limpa), seletor de modo e alerta de divergência entre serviço/API no IA Lab, e `npm run rollout:report` (gates de 200 packs, 99% válidos, 99% cobertura shadow e p95 opcional) sobre os replays. |
 | 2026-10-21 | 1.0.14 | F6: replay opt-in (`AI_REPLAY_PATH`) → dataset builder (`npm run dataset:build`, splits por domínio, `test.eval.jsonl`) → `training/train_qlora.py` (LoRA; engine `hf` p/ Windows/CPU e `sft` p/ Linux/GPU) → GGUF no llama.cpp. Cross-platform: scripts compatíveis com Windows e Ubuntu/WSL2; `.gitattributes` força LF em scripts/datasets. |
 | 2026-10-21 | 1.0.13 | F5: visão opcional (CLIP/SigLIP via HTTP, `off` por padrão) que reordena apenas as imagens já extraídas antes da heurística, com timeout/best-effort e kill switch por request; `httpProvider` (GPU/remota) usa o id do catálogo quando `LLM_HTTP_MODEL` está vazio. 14 testes novos. |
@@ -295,7 +296,7 @@ Logs estruturados por request: `requestId`, `packHash`, `mode`, `latencyMs`, `de
 | `on` | IA prevalece no canário | rollback via kill switch sem deploy |
 
 Operação:
-- `npm run rollout:report -- --in data/replays.jsonl` valida os gates do `shadow` (200 packs, 99% válidos, 99% cobertura shadow; `--max-p95` opcional). Exit 1 quando falha.
+- `npm run rollout:report -- --in data/replays.jsonl` valida os gates do `shadow` (200 packs, 99% válidos, 99% dos cards pendentes com escolha shadow; `--max-p95` opcional). Exit 1 quando falha.
 - Kill switch da API: `PUT /admin/ai-extractor/mode` (`off|shadow|assist|on|env`) grava override **em memória** (auditado) e vale por request; `env` volta ao `AI_ADJ_MODE` do processo. Reinício limpa o override.
 - O modo do **serviço** (`ai-extractor-api`) continua no `.env` (`AI_ADJ_MODE`); o IA Lab mostra ambos e alerta quando divergem. Promova `assist` só após o relatório de shadow e o eval sem regressão de p95.
 
