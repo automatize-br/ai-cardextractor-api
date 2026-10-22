@@ -102,6 +102,18 @@ export const env = {
   LLM_HTTP_BASE_URL: readString('LLM_HTTP_BASE_URL'),
   LLM_HTTP_API_KEY: readString('LLM_HTTP_API_KEY'),
   LLM_HTTP_MODEL: readString('LLM_HTTP_MODEL'),
+
+  // Visao (F5): servico CLIP/SigLIP OPCIONAL para reordenar as imagens que o
+  // extrator JA encontrou. `off` por padrao; nunca gera imagem/URL.
+  VISION_PROVIDER: readString('VISION_PROVIDER', 'off'),
+  VISION_HTTP_URL: readString('VISION_HTTP_URL'),
+  VISION_HTTP_API_KEY: readString('VISION_HTTP_API_KEY'),
+  VISION_TIMEOUT_MS: readInt('VISION_TIMEOUT_MS', 1500),
+  VISION_MIN_SCORE: readFloat('VISION_MIN_SCORE', 0),
+
+  // Replay/dataset (F6). Vazio = desligado. Contém dados de produto: opt-in.
+  AI_REPLAY_PATH: readString('AI_REPLAY_PATH'),
+  AI_REPLAY_MAX_BYTES: readInt('AI_REPLAY_MAX_BYTES', 50_000_000),
 } as const
 
 export function isTestEnvironment(): boolean {

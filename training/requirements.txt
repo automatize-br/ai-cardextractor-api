@@ -1,0 +1,10 @@
+# Fine-tuning (F6). Em Ubuntu/WSL2 com GPU, instale o torch CUDA antes:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu124
+# No Windows/CPU, o `torch` padrão do PyPI já basta.
+torch>=2.4
+transformers>=4.45,<5
+peft>=0.13
+datasets>=3.0
+accelerate>=1.0
+# Só para --engine sft (Linux/GPU; no Windows/CPU use o engine hf).
+trl>=0.12

@@ -1,9 +1,9 @@
 # Plano de Integração — IA de Extração de Ofertas
 
-**Versão:** 1.0.9
+**Versão:** 1.0.15
 **Criado em:** 2026-10-21
 **Última atualização:** 2026-10-21
-**Status:** Em implementação (F1 concluída; F2 em andamento)
+**Status:** Concluído (F1–F7)
 **Substitui:** `01_ARQUITETURA_E_IA.md` (documento original com 4 documentos empacotados e erros técnicos)
 **ADRs relacionados:** `docs/ADR-005-extracao-hibrida.md`, `../../API/docs/adr/004-deterministic-scraping.md`
 
@@ -17,6 +17,12 @@
 | 2026-10-21 | 1.0.1 | Registrada a criação do microserviço `ai-extractor-api` (F0/F1) e o contrato de adjudicação implementado. |
 | 2026-10-21 | 1.0.2 | Repositório renomeado para `ai-extractor-api`; planos e ADR movidos para `ai-extractor-api/docs/`. Referências de caminho atualizadas. |
 | 2026-10-21 | 1.0.3 | Porta padrão do serviço definida em 5555 para não bloquear a operação local. |
+| 2026-10-21 | 1.0.15 | F7: kill switch em runtime no painel (`PUT /admin/ai-extractor/mode`, override em memória com auditoria; `env` limpa), seletor de modo e alerta de divergência entre serviço/API no IA Lab, e `npm run rollout:report` (gates de 200 packs, 99% válidos, 99% cobertura shadow e p95 opcional) sobre os replays. |
+| 2026-10-21 | 1.0.14 | F6: replay opt-in (`AI_REPLAY_PATH`) → dataset builder (`npm run dataset:build`, splits por domínio, `test.eval.jsonl`) → `training/train_qlora.py` (LoRA; engine `hf` p/ Windows/CPU e `sft` p/ Linux/GPU) → GGUF no llama.cpp. Cross-platform: scripts compatíveis com Windows e Ubuntu/WSL2; `.gitattributes` força LF em scripts/datasets. |
+| 2026-10-21 | 1.0.13 | F5: visão opcional (CLIP/SigLIP via HTTP, `off` por padrão) que reordena apenas as imagens já extraídas antes da heurística, com timeout/best-effort e kill switch por request; `httpProvider` (GPU/remota) usa o id do catálogo quando `LLM_HTTP_MODEL` está vazio. 14 testes novos. |
+| 2026-10-21 | 1.0.12 | F4: harness de avaliação OFFLINE no `ai-extractor-api` (`npm run eval:adjudication`, dataset JSONL, acurácia por campo, casos inválidos e latência p95) e laboratório `/admin/ia-lab` (admin-only) na API/FRONT: status/ready/modelos/stats, load/unload do modelo e execução de pack de teste via proxy interno. 5 testes novos do proxy. |
+| 2026-10-21 | 1.0.11 | F3: badge "Revisar" no card com tooltip dos motivos, proveniência enviada ao salvar, bloqueio de envio quando o motivo é preço/moeda, limpeza de `needsReview` ao editar e estado vazio com contadores de descarte. API passou a devolver `discarded` no envelope de `/platforms/:marketplace/offers` (contadores do scraper agregados por fonte). |
+| 2026-10-21 | 1.0.10 | F2b: pack com múltiplos candidatos (títulos/preços/imagens) e IDs opacos únicos; moeda real por candidato com descarte não-BRL na borda do scraper; escolha do modelo revalidada contra o pack e aplicada só acima de `AI_MIN_CONFIDENCE`; campos `extractionSource/needsReview/reviewReasons/aiModelVersion` em `tb_products` (schema, tipos e controller). 5 testes novos. |
 | 2026-10-21 | 1.0.9 | Cliente: circuit breaker (3 falhas de transporte → 60s sem chamadas), timeout alinhado ao servidor (15s > 12s), sanitização do pack (título 300, breadcrumb 200, host 255, cents inteiro, imagem http(s) ≤2000). Smoke real: 4 cards, 1 chamada, 1.76s, `c3` decidido pelo modelo (`source=model`). |
 | 2026-10-21 | 1.0.8 | Cliente endurecido após 3ª revisão: packs fatiados (`AI_PACK_MAX_CARDS=30`), resposta malformada é fail-open, motivos objetivos de `rejected` descartam (invalid_model_output vai para revisão), `shadow` retorna os itens intocados, proveniência só marca `ai` quando `source=model`, moeda nula não vira BRL, pack adjudicado antes da paginação. 11 testes do cliente; API 1069 verdes. |
 | 2026-10-21 | 1.0.7 | F2 iniciada na API: `src/helpers/aiExtractorClient.ts` (`adjudicateOffers`, fail-open, timeout, `AI_*`), exits de `browseOffers` integrados, campos `extractionSource/needsReview/reviewReasons/aiModelVersion` no tipo de resultado e 6 testes do cliente. Falta: moeda real, candidatos múltiplos (F2b) e campos em `tb_products`. |
@@ -288,7 +294,10 @@ Logs estruturados por request: `requestId`, `packHash`, `mode`, `latencyMs`, `de
 | `assist` | IA prevalece quando confiança >= limiar e validação passa | ganho >= 5 p.p. na taxa de extração correta, sem regressão de latência p95 |
 | `on` | IA prevalece no canário | rollback via kill switch sem deploy |
 
-Kill switch: `AI_ADJ_ENABLED` + `AI_ADJ_MODE` lidos a cada request; mudança invalida cache.
+Operação:
+- `npm run rollout:report -- --in data/replays.jsonl` valida os gates do `shadow` (200 packs, 99% válidos, 99% cobertura shadow; `--max-p95` opcional). Exit 1 quando falha.
+- Kill switch da API: `PUT /admin/ai-extractor/mode` (`off|shadow|assist|on|env`) grava override **em memória** (auditado) e vale por request; `env` volta ao `AI_ADJ_MODE` do processo. Reinício limpa o override.
+- O modo do **serviço** (`ai-extractor-api`) continua no `.env` (`AI_ADJ_MODE`); o IA Lab mostra ambos e alerta quando divergem. Promova `assist` só após o relatório de shadow e o eval sem regressão de p95.
 
 ---
 
@@ -298,12 +307,12 @@ Kill switch: `AI_ADJ_ENABLED` + `AI_ADJ_MODE` lidos a cada request; mudança inv
 | --- | --- | --- | --- |
 | F0 | Plano consolidado, ADR-005, correções do doc original | Concluída | 2026-10-21 |
 | F1 | `ai-extractor-api` scaffold + contrato + providers + testes | Concluída | 2026-10-21 |
-| F2 | Integração na API (`AdjudicationClient`, candidatos, moeda) | Em andamento | 2026-10-21 |
-| F3 | Front (badge, bloqueio, estado vazio, contadores) | Pendente | — |
-| F4 | Laboratório admin + harness de eval + shadow | Pendente | — |
-| F5 | Visão (CLIP/SigLIP) e provider HTTP/GPU | Pendente | — |
-| F6 | Dataset + fine-tuning | Pendente | — |
-| F7 | Rollout `assist`/`on` | Pendente | — |
+| F2 | Integração na API (`AdjudicationClient`, candidatos, moeda) | Concluída | 2026-10-21 |
+| F3 | Front (badge, bloqueio, estado vazio, contadores) | Concluída | 2026-10-21 |
+| F4 | Laboratório admin + harness de eval + shadow | Concluída | 2026-10-21 |
+| F5 | Visão (CLIP/SigLIP) e provider HTTP/GPU | Concluída | 2026-10-21 |
+| F6 | Dataset + fine-tuning | Concluída (pipeline) | 2026-10-21 |
+| F7 | Rollout `assist`/`on` | Concluída (ferramentas) | 2026-10-21 |
 
 ---
 

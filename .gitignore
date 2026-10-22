@@ -9,3 +9,11 @@ models/
 *.log
 .DS_Store
 coverage/
+
+# F6 — replays/dataset/treino (dados de produto; nunca versionar)
+data/
+training/out/
+
+# Python (treino F6)
+__pycache__/
+*.pyc

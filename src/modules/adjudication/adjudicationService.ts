@@ -20,6 +20,9 @@ import {
   type PendingCard,
 } from './adjudicationHeuristics.ts'
 import { assertPackHash, parseTitleDecisions, validatePack } from './adjudicationValidators.ts'
+import { rankImageCandidates } from './visionRanking.ts'
+import { getVisionProvider } from '../../providers/vision/index.ts'
+import { captureReplay } from '../../helpers/replayCapture.ts'
 
 // ============================================================================
 // Adjudicacao HIBRIDA:
@@ -44,6 +47,17 @@ export default class AdjudicationService {
     const started = Date.now()
     const pack = validatePack(raw)
     const packHash = assertPackHash(pack)
+
+    // VISÃO (F5, opcional): reordena as imagens JÁ extraídas pelo score CLIP/
+    // SigLIP antes da heurística. Falha do provider mantém a ordem original.
+    const vision = getVisionProvider()
+    if (vision) {
+      await rankImageCandidates(pack.cards, vision, {
+        minScore: env.VISION_MIN_SCORE,
+        timeoutMs: env.VISION_TIMEOUT_MS,
+        signal: options.signal ?? null,
+      }).catch(() => 0)
+    }
 
     const provider = getProvider(null)
     const adjMode = getAdjMode()
@@ -250,6 +264,26 @@ export default class AdjudicationService {
       })
     } catch (error) {
       console.error('[adjudication] persist failed:', error instanceof Error ? error.message : error)
+    }
+
+    // F6: replay opt-in (AI_REPLAY_PATH) alimenta o dataset de treino.
+    if (adjMode !== 'off') {
+      await captureReplay({
+        capturedAt: new Date().toISOString(),
+        packHash: result.packHash,
+        packVersion: result.packVersion,
+        marketplace: pack.marketplace,
+        mode: result.mode,
+        modelId: result.modelId,
+        modelVersion: result.modelVersion,
+        promptVersion: result.promptVersion,
+        latencyMs: result.latencyMs,
+        fallbackReason: result.fallbackReason,
+        pack,
+        decisions: result.decisions,
+        rejected: result.rejected,
+        shadow: shadowDecisions.length > 0 ? shadowDecisions : null,
+      })
     }
 
     return { ...result, latencyMs: Date.now() - started }

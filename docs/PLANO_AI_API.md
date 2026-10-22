@@ -1,6 +1,6 @@
 # Plano de Implementação — `ai-extractor-api`
 
-**Versão:** 1.0.6
+**Versão:** 1.0.10
 **Criado em:** 2026-10-21
 **Última atualização:** 2026-10-21
 **Status:** Em implementação
@@ -15,6 +15,10 @@
 | 2026-10-21 | 1.0.0 | Criação do plano. Define estrutura de pastas espelhando `../../API`, contrato, providers, persistência, scripts e fases. |
 | 2026-10-21 | 1.0.1 | Serviço renomeado de `ai-api` para `ai-extractor-api`; este plano passou a viver em `ai-extractor-api/docs/`. |
 | 2026-10-21 | 1.0.2 | Porta padrão alterada de 3010 para 5555 (evita conflito com outros serviços locais). |
+| 2026-10-21 | 1.0.10 | F7: relatório de rollout (`npm run rollout:report`) sobre os replays, com gates de packs/validade/cobertura shadow/p95; replay passou a registrar `fallbackReason`. Kill switch operacional fica no proxy admin da API. |
+| 2026-10-21 | 1.0.9 | F6: replay opt-in (`AI_REPLAY_PATH`) com pack+decisões+shadow; `npm run dataset:build` gera train/valid/test (messages SFT), `test.eval.jsonl` e `stats.json`, com split por marketplace (fallback hash), rótulo humano > shadow > modelo; `training/train_qlora.py` com engine `hf` (Windows/CPU) e `sft` (Linux/GPU), máscara só na resposta e `--merge`. 8 testes novos. |
+| 2026-10-21 | 1.0.8 | F5: provider de visão OPCIONAL (`VISION_PROVIDER=off|fake|http`) que reordena as imagens já extraídas por score CLIP/SigLIP antes da heurística (contrato `POST {VISION_HTTP_URL}/score` → `{scores}`); best-effort, nunca cria imagem. HTTP provider passou a usar o id do catálogo quando `LLM_HTTP_MODEL` está vazio. 14 testes novos. |
+| 2026-10-21 | 1.0.7 | F4: harness de avaliação offline (`scripts/eval-adjudication.ts`, `npm run eval:adjudication`) com dataset JSONL, comparação por IDs e latência p95; `--mode` permite avaliar `shadow`/`on` com o provider `fake` ou `llamacpp`. |
 | 2026-10-21 | 1.0.6 | Terceira rodada de revisão: filtro de ruído por título inteiro (não substring), `missing_title`/`missing_price` corretos, `p=0` preserva `cf`, `assist` respeita `AI_MIN_CONFIDENCE` e nunca descarta (só `on` com confiança alta remove), decisões carregam `source` (heuristic/model), `context` opcional no pack, abort checado pós-load, timeout de load (`LLM_LOAD_TIMEOUT_MS`) com geração invalidada, upsert diário com retry E11000. 36 testes. |
 | 2026-10-21 | 1.0.5 | Abstenção do modelo não descarta oferta; shadow grava `shadow` (evidência); modo vivo no `/health`; fila limitada (`LLM_MAX_QUEUE`); unload drena antes de remover. 28 testes. |
 | 2026-10-21 | 1.0.4 | Correções da revisão adversarial: fallback preserva decisões determinísticas (só pendentes caem); `AI_ADJ_MODE` aplicado por request (off/shadow/assist/on); `fake` bloqueado em produção; fila + single-flight no provider; abort do cliente cancela inferência; timeout 12000; `needsReview`/`reviewReasons`; stats com `heuristic` e `modelCalls`; body 1mb; 25 testes. |
@@ -167,6 +171,13 @@ Fora de dev/teste, chave vazia derruba o boot (fail-closed).
 | `AI_STORE_PACKS` | `false` | persistir pack completo |
 | `AI_ADJ_MODE` | `off` | lido por request: `off`/`shadow`/`assist`/`on` (kill switch) |
 | `AI_MIN_CONFIDENCE` | `0.6` | abaixo disso: `needsReview`; no `assist` a escolha do modelo não prevalece; no `on` só descarta `p=0` acima do limiar |
+| `VISION_PROVIDER` | `off` | visão opcional (F5): `off` / `fake` / `http`; lido por request |
+| `VISION_HTTP_URL` | `` | base do serviço CLIP/SigLIP (`POST /score`) |
+| `VISION_HTTP_API_KEY` | `` | Bearer opcional do serviço de visão |
+| `VISION_TIMEOUT_MS` | `1500` | teto por card com mais de 1 imagem |
+| `VISION_MIN_SCORE` | `0` | score mínimo para reordenar (abaixo disso mantém a ordem) |
+| `AI_REPLAY_PATH` | `` | F6: JSONL de replays para o dataset (vazio = desligado; contém dados de produto) |
+| `AI_REPLAY_MAX_BYTES` | `50000000` | teto do arquivo de replay; ao atingir, a captura pausa |
 
 ---
 
@@ -190,7 +201,15 @@ Implementações:
 - `llamaCppProvider`: `node-llama-cpp`, carregamento preguiçoso, gramática GBNF, abort por `signal`.
 - `httpProvider`: endpoint OpenAI-compatible (llama.cpp server, vLLM, GPU remota).
 
-Registro em `providers/llm/index.ts` resolve por `provider` + `modelId`, mantém instâncias e expõe `listModels()`.
+Registro em `providers/llm/index.ts` resolve por `provider` + `modelId`, mantém instâncias e expõe `listModels()`. O `httpProvider` usa `LLM_HTTP_MODEL`; vazio cai para o id lógico do modelo.
+
+### 5.1 Visão (F5, opcional)
+
+`providers/vision` expõe `VisionProvider` (`score({text, images})` → `number[]`):
+- `httpVisionProvider`: `POST {VISION_HTTP_URL}/score` com `{text, images}` → `{scores}` (CLIP/SigLIP+FastAPI, GPU remota).
+- `fakeVisionProvider`: determinístico para testes.
+- `off` (default): nenhuma chamada de rede.
+A reordenação (`modules/adjudication/visionRanking.ts`) só altera a ordem dos candidatos de imagem já extraídos; falha/timeout mantém a ordem determinística.
 
 ---
 
@@ -198,6 +217,7 @@ Registro em `providers/llm/index.ts` resolve por `provider` + `modelId`, mantém
 
 1. Validar pack (shape, limites, IDs únicos, moeda, cents).
 2. Calcular `packHash` e comparar com o informado (quando presente).
+2.1. **Visão (opcional)**: com `VISION_PROVIDER != off`, reordena as imagens de cada card (best-effort) antes da heurística.
 3. **Heurísticas determinísticas** (`adjudicationHeuristics.ts`):
    - preço atual BRL único (centavos distintos) → escolhido;
    - preço ausente/estrangeiro → `missing_price`/`currency_mismatch`;
@@ -234,7 +254,15 @@ Comandos:
 npm run typecheck
 npm test
 npm run dev
+npm run eval:adjudication            # avaliação offline (fake por padrão)
+npm run eval:adjudication -- --mode shadow
+npm run dataset:build                # F6: replays → data/dataset (treino)
+npm run rollout:report               # F7: gates do shadow sobre os replays
 ```
+
+Treino (F6): detalhes em `training/README.md`. O serviço é testado no Windows e
+roda no Ubuntu; o treino aceita ambos (engine `hf` no Windows/CPU, `sft` no
+Linux/GPU). O GGUF final usa o mesmo `node-llama-cpp`.
 
 ---
 

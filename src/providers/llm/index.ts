@@ -82,7 +82,14 @@ function createProvider(config: ModelConfig): LlmProvider {
     case 'llamacpp':
       return new LlamaCppProvider(config)
     case 'http':
-      return new HttpProvider(config, env.LLM_HTTP_BASE_URL, env.LLM_HTTP_API_KEY, env.LLM_HTTP_MODEL)
+      // Sem LLM_HTTP_MODEL explícito, usa o id lógico do catálogo (vLLM/llama.cpp
+      // normalmente servem o modelo com o mesmo nome).
+      return new HttpProvider(
+        config,
+        env.LLM_HTTP_BASE_URL,
+        env.LLM_HTTP_API_KEY,
+        env.LLM_HTTP_MODEL || config.id,
+      )
   }
 }
 

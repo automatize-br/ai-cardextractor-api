@@ -14,7 +14,10 @@
     "test": "node scripts/run-tests.mjs tests/unit tests/integration",
     "test:unit": "node scripts/run-tests.mjs tests/unit",
     "model:download": "node scripts/download-model.mjs",
-    "model:smoke": "tsx scripts/smoke-llm.ts"
+    "model:smoke": "tsx scripts/smoke-llm.ts",
+    "eval:adjudication": "tsx scripts/eval-adjudication.ts",
+    "dataset:build": "tsx scripts/build-dataset.ts",
+    "rollout:report": "tsx scripts/rollout-report.ts"
   },
   "author": "",
   "license": "ISC",
