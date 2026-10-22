@@ -13,7 +13,8 @@
     "start": "node dist/server.js",
     "test": "node scripts/run-tests.mjs tests/unit tests/integration",
     "test:unit": "node scripts/run-tests.mjs tests/unit",
-    "model:download": "node scripts/download-model.mjs"
+    "model:download": "node scripts/download-model.mjs",
+    "model:smoke": "tsx scripts/smoke-llm.ts"
   },
   "author": "",
   "license": "ISC",

@@ -1,9 +1,9 @@
 # Plano de Integração — IA de Extração de Ofertas
 
-**Versão:** 1.0.2
+**Versão:** 1.0.9
 **Criado em:** 2026-10-21
 **Última atualização:** 2026-10-21
-**Status:** Em implementação (F0 concluída, F1 em andamento)
+**Status:** Em implementação (F1 concluída; F2 em andamento)
 **Substitui:** `01_ARQUITETURA_E_IA.md` (documento original com 4 documentos empacotados e erros técnicos)
 **ADRs relacionados:** `docs/ADR-005-extracao-hibrida.md`, `../../API/docs/adr/004-deterministic-scraping.md`
 
@@ -16,6 +16,13 @@
 | 2026-10-21 | 1.0.0 | Criação do plano consolidado. Consolida as decisões das duas rodadas de revisão adversarial (backend e produto), corrige os erros técnicos do documento original e define o escopo do MVP. |
 | 2026-10-21 | 1.0.1 | Registrada a criação do microserviço `ai-extractor-api` (F0/F1) e o contrato de adjudicação implementado. |
 | 2026-10-21 | 1.0.2 | Repositório renomeado para `ai-extractor-api`; planos e ADR movidos para `ai-extractor-api/docs/`. Referências de caminho atualizadas. |
+| 2026-10-21 | 1.0.3 | Porta padrão do serviço definida em 5555 para não bloquear a operação local. |
+| 2026-10-21 | 1.0.9 | Cliente: circuit breaker (3 falhas de transporte → 60s sem chamadas), timeout alinhado ao servidor (15s > 12s), sanitização do pack (título 300, breadcrumb 200, host 255, cents inteiro, imagem http(s) ≤2000). Smoke real: 4 cards, 1 chamada, 1.76s, `c3` decidido pelo modelo (`source=model`). |
+| 2026-10-21 | 1.0.8 | Cliente endurecido após 3ª revisão: packs fatiados (`AI_PACK_MAX_CARDS=30`), resposta malformada é fail-open, motivos objetivos de `rejected` descartam (invalid_model_output vai para revisão), `shadow` retorna os itens intocados, proveniência só marca `ai` quando `source=model`, moeda nula não vira BRL, pack adjudicado antes da paginação. 11 testes do cliente; API 1069 verdes. |
+| 2026-10-21 | 1.0.7 | F2 iniciada na API: `src/helpers/aiExtractorClient.ts` (`adjudicateOffers`, fail-open, timeout, `AI_*`), exits de `browseOffers` integrados, campos `extractionSource/needsReview/reviewReasons/aiModelVersion` no tipo de resultado e 6 testes do cliente. Falta: moeda real, candidatos múltiplos (F2b) e campos em `tb_products`. |
+| 2026-10-21 | 1.0.6 | Segunda rodada de revisão: abstenção do modelo não descarta oferta (`isProduct=null`); shadow persiste a escolha do modelo em `shadow`; `/health` reporta modo vivo; fallbackReason sanitizado; fila com limite; unload drena antes de remover do registry. 28 testes. |
+| 2026-10-21 | 1.0.5 | Contrato ajustado após revisão: `mode` ganha `heuristic`; fallback preserva decisões; decisão ganha `needsReview`/`reviewReasons`; `model_fallback` significa "usar determinístico local", não descarte; kill switch `AI_ADJ_MODE` por request. |
+| 2026-10-21 | 1.0.4 | Adjudicação híbrida validada no modelo real: heurísticas resolvem cards objetivos e o 0.5B só decide título ambíguo (lotes de 2, letras A-L). `LLM_TIMEOUT_MS`=120000. Smoke: 4 cards, 1 chamada, 2.2s. |
 
 > Regra deste documento: toda alteração de escopo, contrato ou fase deve adicionar uma linha na tabela acima com a data e um resumo de uma frase. Não reescrever o histórico.
 
@@ -83,7 +90,7 @@ API Vupia (../../API)
         |       -> RawOffer[] + candidatos + proveniência
         |
         |-- AdjudicationClient (novo, interno)
-        |       POST http://127.0.0.1:3010/v1/adjudicate
+        |       POST http://127.0.0.1:5555/v1/adjudicate
         |       timeout 3.5s por lote, aborta e cai no determinístico
         v
 ai-extractor-api (novo)
@@ -114,6 +121,7 @@ ai-extractor-api (novo)
 {
   "packVersion": "1",
   "marketplace": "amazon",
+  "packHash": null,
   "cards": [
     {
       "cardId": "c_7f3a",
@@ -144,7 +152,7 @@ Regras do request:
   "success": true,
   "data": {
     "packVersion": "1",
-    "packHash": "sha256:...",
+    "packHash": "<64 hex>",
     "mode": "llm",
     "modelId": "qwen2.5-0.5b-instruct-q4_k_m",
     "modelVersion": "qwen2.5-0.5b-instruct-q4_k_m@2026-10-21",
@@ -158,7 +166,9 @@ Regras do request:
         "priceId": "p_1",
         "originalPriceId": "p_2",
         "imageId": "i_1",
-        "confidence": 0.87
+        "confidence": 0.87,
+        "needsReview": false,
+        "reviewReasons": []
       }
     ],
     "rejected": [{ "cardId": "c_9d21", "reason": "not_a_product" }]
@@ -172,7 +182,12 @@ Regras da response:
 - `priceId` DEVE apontar para candidato `kind=current` e `currency=BRL` quando `isProduct=true`.
 - `originalPriceId` é `null` ou aponta para candidato com `cents > price.cents`.
 - `confidence` em `[0,1]`.
-- Em modo `fallback` (timeout/erro/modelo indisponível), `decisions` volta vazio e `mode="fallback"` com `fallbackReason`.
+- `mode`: `llm` (modelo chamado), `heuristic` (100% regras), `fake` (teste) ou `fallback` (provider falhou).
+- Em `fallback`, decisões determinísticas são preservadas; `rejected[].reason="model_fallback"` significa "card pendente sem modelo" e NÃO deve ser tratado como descarte pelo cliente (usar extração determinística local).
+- `needsReview=true` quando `confidence < AI_MIN_CONFIDENCE`; o cliente deve sinalizar revisão, não descartar.
+- `model_fallback` aparece em `reviewReasons`, NÃO em `rejected[].reason`. Abstenção do modelo (`p=1` com título inválido) NÃO vira descarte.
+- `mode=heuristic` também é usado em `shadow` (decisão determinística; escolha do modelo fica registrada em `shadow` na auditoria).
+- `packHash` é obrigatório no request (`null` = servidor calcula).
 
 ---
 
@@ -282,8 +297,8 @@ Kill switch: `AI_ADJ_ENABLED` + `AI_ADJ_MODE` lidos a cada request; mudança inv
 | Fase | Entrega | Status | Data |
 | --- | --- | --- | --- |
 | F0 | Plano consolidado, ADR-005, correções do doc original | Concluída | 2026-10-21 |
-| F1 | `ai-extractor-api` scaffold + contrato + providers + testes | Em andamento | 2026-10-21 |
-| F2 | Integração na API (`AdjudicationClient`, candidatos, moeda) | Pendente | — |
+| F1 | `ai-extractor-api` scaffold + contrato + providers + testes | Concluída | 2026-10-21 |
+| F2 | Integração na API (`AdjudicationClient`, candidatos, moeda) | Em andamento | 2026-10-21 |
 | F3 | Front (badge, bloqueio, estado vazio, contadores) | Pendente | — |
 | F4 | Laboratório admin + harness de eval + shadow | Pendente | — |
 | F5 | Visão (CLIP/SigLIP) e provider HTTP/GPU | Pendente | — |

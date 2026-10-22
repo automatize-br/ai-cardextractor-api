@@ -1,6 +1,6 @@
 # Plano de Implementação — `ai-extractor-api`
 
-**Versão:** 1.0.1
+**Versão:** 1.0.6
 **Criado em:** 2026-10-21
 **Última atualização:** 2026-10-21
 **Status:** Em implementação
@@ -14,6 +14,11 @@
 | --- | --- | --- |
 | 2026-10-21 | 1.0.0 | Criação do plano. Define estrutura de pastas espelhando `../../API`, contrato, providers, persistência, scripts e fases. |
 | 2026-10-21 | 1.0.1 | Serviço renomeado de `ai-api` para `ai-extractor-api`; este plano passou a viver em `ai-extractor-api/docs/`. |
+| 2026-10-21 | 1.0.2 | Porta padrão alterada de 3010 para 5555 (evita conflito com outros serviços locais). |
+| 2026-10-21 | 1.0.6 | Terceira rodada de revisão: filtro de ruído por título inteiro (não substring), `missing_title`/`missing_price` corretos, `p=0` preserva `cf`, `assist` respeita `AI_MIN_CONFIDENCE` e nunca descarta (só `on` com confiança alta remove), decisões carregam `source` (heuristic/model), `context` opcional no pack, abort checado pós-load, timeout de load (`LLM_LOAD_TIMEOUT_MS`) com geração invalidada, upsert diário com retry E11000. 36 testes. |
+| 2026-10-21 | 1.0.5 | Abstenção do modelo não descarta oferta; shadow grava `shadow` (evidência); modo vivo no `/health`; fila limitada (`LLM_MAX_QUEUE`); unload drena antes de remover. 28 testes. |
+| 2026-10-21 | 1.0.4 | Correções da revisão adversarial: fallback preserva decisões determinísticas (só pendentes caem); `AI_ADJ_MODE` aplicado por request (off/shadow/assist/on); `fake` bloqueado em produção; fila + single-flight no provider; abort do cliente cancela inferência; timeout 12000; `needsReview`/`reviewReasons`; stats com `heuristic` e `modelCalls`; body 1mb; 25 testes. |
+| 2026-10-21 | 1.0.3 | Adjudicação híbrida: heurísticas resolvem preço/imagem/original e o modelo só decide título ambíguo. Modelo passou a responder LETRAS (A-L) por card, em lotes de 2. `LLM_TIMEOUT_MS`=120000. Corrigido vazamento de sequence do `node-llama-cpp`. Suíte com 20 testes. |
 
 > Toda alteração de arquitetura, endpoint, variável de ambiente ou fase deve ser registrada aqui com data.
 
@@ -137,7 +142,7 @@ Fora de dev/teste, chave vazia derruba o boot (fail-closed).
 
 | Variável | Default | Descrição |
 | --- | --- | --- |
-| `PORT` | `3010` | porta HTTP |
+| `PORT` | `5555` | porta HTTP |
 | `HOST` | `127.0.0.1` | bind (nunca `0.0.0.0` por padrão) |
 | `ENVIRONMENT` | `` | `dev` / `TEST` / `production` |
 | `TRUST_PROXY` | `` | hops confiáveis |
@@ -147,7 +152,10 @@ Fora de dev/teste, chave vazia derruba o boot (fail-closed).
 | `MONGO_URI` | `` | URI completa (tem prioridade) |
 | `MONGO_USER`, `MONGO_PASSWORD`, `MONGO_URL`, `MONGO_ENVIRONMENT` | `` | composição estilo Atlas |
 | `LLM_PROVIDER` | `fake` | `fake` / `llamacpp` / `http` |
-| `LLM_TIMEOUT_MS` | `3500` | orçamento por pack |
+| `LLM_TIMEOUT_MS` | `12000` | orçamento total por pack (soma dos lotes) |
+| `LLM_LOAD_TIMEOUT_MS` | `60000` | teto para carregar o GGUF (load travado não ocupa a fila) |
+| `LLM_CHUNK_SIZE` | `2` | cards por chamada ao modelo (0.5B não emite N itens) |
+| `LLM_MAX_QUEUE` | `8` | requisições aguardando o modelo (acima disso: 503) |
 | `LLM_MAX_CARDS` | `30` | limite de cards por pack |
 | `LLM_MAX_TOKENS` | `700` | teto de geração |
 | `AI_MODEL_ID` | `qwen2.5-0.5b-instruct-q4_k_m` | id lógico |
@@ -157,7 +165,8 @@ Fora de dev/teste, chave vazia derruba o boot (fail-closed).
 | `AI_MODELS_JSON` | `` | catálogo extra `[{id,provider,path,contextSize}]` |
 | `AI_MODEL_MAP_JSON` | `` | mapa de aliases por marketplace |
 | `AI_STORE_PACKS` | `false` | persistir pack completo |
-| `AI_ADJ_MODE` | `off` | espelho do modo (informativo) |
+| `AI_ADJ_MODE` | `off` | lido por request: `off`/`shadow`/`assist`/`on` (kill switch) |
+| `AI_MIN_CONFIDENCE` | `0.6` | abaixo disso: `needsReview`; no `assist` a escolha do modelo não prevalece; no `on` só descarta `p=0` acima do limiar |
 
 ---
 
@@ -185,24 +194,37 @@ Registro em `providers/llm/index.ts` resolve por `provider` + `modelId`, mantém
 
 ---
 
-## 6. Pipeline de adjudicação
+## 6. Pipeline de adjudicação (híbrido)
 
 1. Validar pack (shape, limites, IDs únicos, moeda, cents).
 2. Calcular `packHash` e comparar com o informado (quando presente).
-3. Montar prompt compacto (somente IDs + textos normalizados).
-4. Chamar provider com gramática estática e `AbortSignal.timeout`.
-5. Parsear JSON compacto.
-6. Revalidar cada decisão contra o pack (IDs, moeda, original > atual).
+3. **Heurísticas determinísticas** (`adjudicationHeuristics.ts`):
+   - preço atual BRL único (centavos distintos) → escolhido;
+   - preço ausente/estrangeiro → `missing_price`/`currency_mismatch`;
+   - >1 preço atual BRL distinto → `ambiguous_price`;
+   - imagem: primeira; ausente → `missing_image`;
+   - título: descarta ruído (`patrocinado`, `frete grátis`, `cupom`, ...);
+     - 0 plausíveis → `not_a_product`;
+     - 1 plausível → resolve sem modelo;
+     - 2+ plausíveis → **pendente** para o modelo;
+   - original: BRL com `cents > price.cents`, maior valor.
+4. Pendentes vão ao modelo em lotes de `LLM_CHUNK_SIZE` (2), com mini-pack
+   (apenas títulos plausíveis + preço/imagem já escolhidos). O modelo responde
+   `{"d":[{"c":1,"p":1,"t":"A","pr":"A","o":"-","i":"A","cf":90}]}` — LETRAS,
+   nunca IDs/textos. Preço/imagem/original do modelo são ignorados.
+5. Parsear e revalidar contra o mini-pack (letra -> candidato existente).
+6. Mesclar: decisão do modelo só substitui `titleId`/produto; o resto vem da
+   heurística. Sem decisão válida -> título mais longo com `confidence=0.4`.
 7. Serializar resposta canônica.
 8. Persistir metadados (nunca valores de preço/título por padrão).
 
-Qualquer erro nos passos 3-6 → `mode="fallback"`, `decisions=[]`, HTTP 200.
+Erro do provider (passos 4-5): decisões já resolvidas são PRESERVADAS; apenas os cards pendentes recebem título determinístico com `confidence=0.4`, `needsReview=true`, `reviewReasons=["model_fallback"]` e `mode="fallback"` + `fallbackReason`. Nenhum card é perdido.
 
 ---
 
 ## 7. Testes
 
-- Unitários: `packHash`, validação de IDs/moeda, parser da resposta do modelo, prompt.
+- Unitários: `packHash`, validação de IDs/moeda, parser da resposta do modelo, heurísticas híbridas.
 - Integração: rota `adjudicate` com `fake` (válido, inválido, timeout, pack grande), auth, health, models.
 - Sem download de modelo e sem chamada de rede.
 

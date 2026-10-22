@@ -1,5 +1,8 @@
-export const PROMPT_VERSION = '1'
-export const PACK_VERSION = '1'
+import { env } from '../config/env.ts'
+
+// Versoes vem do ambiente (nunca hardcode): ver config/env.ts.
+export const PROMPT_VERSION = env.PROMPT_VERSION
+export const PACK_VERSION = env.PACK_VERSION
 
 export const PRICE_KINDS = ['current', 'original', 'installment', 'unknown'] as const
 export type PriceKindName = (typeof PRICE_KINDS)[number]
@@ -12,6 +15,7 @@ export const REJECTION_REASONS = [
   'currency_mismatch',
   'ambiguous_price',
   'invalid_model_output',
+  'model_fallback',
 ] as const
 export type RejectionReasonName = (typeof REJECTION_REASONS)[number]
 
