@@ -1,6 +1,6 @@
 # Plano de Implementação — `ai-extractor-api`
 
-**Versão:** 1.0.11
+**Versão:** 1.0.12
 **Criado em:** 2026-10-21
 **Última atualização:** 2026-10-21
 **Status:** Em implementação
@@ -15,6 +15,7 @@
 | 2026-10-21 | 1.0.0 | Criação do plano. Define estrutura de pastas espelhando `../../API`, contrato, providers, persistência, scripts e fases. |
 | 2026-10-21 | 1.0.1 | Serviço renomeado de `ai-api` para `ai-extractor-api`; este plano passou a viver em `ai-extractor-api/docs/`. |
 | 2026-10-21 | 1.0.2 | Porta padrão alterada de 3010 para 5555 (evita conflito com outros serviços locais). |
+| 2026-10-22 | 1.0.12 | Diagnóstico do modelo opt-in: `LLM_DEBUG` loga cada lote (cards, timeout), resposta crua, tokens/latência e a escolha por card; `LLM_DEBUG_PROMPT` inclui system/user. O modelo não tem "thinking": a gramática GBNF só emite o JSON de letras. |
 | 2026-10-22 | 1.0.11 | `rollout:report`: cobertura shadow por card pendente (título ambíguo) em vez de por pack; gate vacuamente satisfeito quando não há pendências. |
 | 2026-10-21 | 1.0.10 | F7: relatório de rollout (`npm run rollout:report`) sobre os replays, com gates de packs/validade/cobertura shadow/p95; replay passou a registrar `fallbackReason`. Kill switch operacional fica no proxy admin da API. |
 | 2026-10-21 | 1.0.9 | F6: replay opt-in (`AI_REPLAY_PATH`) com pack+decisões+shadow; `npm run dataset:build` gera train/valid/test (messages SFT), `test.eval.jsonl` e `stats.json`, com split por marketplace (fallback hash), rótulo humano > shadow > modelo; `training/train_qlora.py` com engine `hf` (Windows/CPU) e `sft` (Linux/GPU), máscara só na resposta e `--merge`. 8 testes novos. |
@@ -163,6 +164,8 @@ Fora de dev/teste, chave vazia derruba o boot (fail-closed).
 | `LLM_MAX_QUEUE` | `8` | requisições aguardando o modelo (acima disso: 503) |
 | `LLM_MAX_CARDS` | `30` | limite de cards por pack |
 | `LLM_MAX_TOKENS` | `700` | teto de geração |
+| `LLM_DEBUG` | `false` | loga cada lote: cards, timeout, resposta crua, tokens, latência e escolha por card |
+| `LLM_DEBUG_PROMPT` | `false` | inclui system/user no log (contém dados da oferta; só local) |
 | `AI_MODEL_ID` | `qwen2.5-0.5b-instruct-q4_k_m` | id lógico |
 | `AI_MODEL_PATH` | `src/models/qwen2.5-0.5b-instruct-q4_k_m.gguf` | arquivo GGUF |
 | `AI_MODEL_CONTEXT` | `2048` | contexto |
@@ -211,6 +214,22 @@ Registro em `providers/llm/index.ts` resolve por `provider` + `modelId`, mantém
 - `fakeVisionProvider`: determinístico para testes.
 - `off` (default): nenhuma chamada de rede.
 A reordenação (`modules/adjudication/visionRanking.ts`) só altera a ordem dos candidatos de imagem já extraídos; falha/timeout mantém a ordem determinística.
+
+### 5.2 Logs do modelo (diagnóstico)
+
+Com `LLM_DEBUG=true`, cada lote emite no terminal:
+
+```
+[llm] chunk 1 pack=abc123 mode=assist cards=c1,c2 timeout=11800ms promptChars=912
+[llm] response latency=1820ms in=310 out=42 raw={"d":[{"c":1,...}]}
+[llm] choice card=c1 product=true title=t1 confidence=0.90
+```
+
+`LLM_DEBUG_PROMPT=true` adiciona `[llm] system>` e `[llm] user>` (prompt completo).
+Não existe "thinking" separado: o Qwen está sob GBNF e responde **apenas** o JSON
+de letras; a resposta crua acima é a saída integral do modelo. Para justificativa
+em linguagem natural seria preciso um segundo passe sem gramática (não usado em
+produção, pois dobra custo/latência).
 
 ---
 

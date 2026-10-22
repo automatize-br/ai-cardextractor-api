@@ -119,9 +119,21 @@ export default class AdjudicationService {
           const remaining = deadline - Date.now()
           if (remaining <= 0) throw new ApiError(503, 'MODEL_TIMEOUT', 'Model timed out')
 
+          const userPrompt = buildUserPrompt(subPack)
+          if (env.LLM_DEBUG) {
+            console.log(
+              `[llm] chunk ${Math.floor(offset / chunkSize) + 1} pack=${packHash.slice(0, 12)} mode=${adjMode} ` +
+                `cards=${chunk.map((item) => item.cardId).join(',')} timeout=${remaining}ms promptChars=${userPrompt.length}`,
+            )
+            if (env.LLM_DEBUG_PROMPT) {
+              console.log(`[llm] system> ${SYSTEM_PROMPT}`)
+              console.log(`[llm] user>\n${userPrompt}`)
+            }
+          }
+
           const completion = await provider.complete({
             system: SYSTEM_PROMPT,
-            user: buildUserPrompt(subPack),
+            user: userPrompt,
             grammar: RESPONSE_GRAMMAR,
             maxTokens: env.LLM_MAX_TOKENS,
             temperature: env.LLM_TEMPERATURE,
@@ -129,10 +141,22 @@ export default class AdjudicationService {
             signal: options.signal ?? AbortSignal.timeout(remaining),
           })
           modelCalls += 1
+          if (env.LLM_DEBUG) {
+            console.log(
+              `[llm] response latency=${completion.latencyMs}ms in=${completion.tokensIn} out=${completion.tokensOut} ` +
+                `raw=${completion.text}`,
+            )
+          }
 
           const titles = parseTitleDecisions(completion.text, subPack)
           for (const item of chunk) {
             const modelTitle = titles.get(item.cardId)
+            if (env.LLM_DEBUG) {
+              console.log(
+                `[llm] choice card=${item.cardId} product=${String(modelTitle?.isProduct ?? null)} ` +
+                  `title=${modelTitle?.titleId ?? '-'} confidence=${(modelTitle?.confidence ?? 0).toFixed(2)}`,
+              )
+            }
 
             if (adjMode === 'shadow') {
               // Shadow: registra a escolha do modelo (evidencia para F4/F6),

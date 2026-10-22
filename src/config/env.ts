@@ -91,6 +91,10 @@ export const env = {
   LLM_MAX_CARDS: readInt('LLM_MAX_CARDS', 30),
   LLM_MAX_TOKENS: readInt('LLM_MAX_TOKENS', 700),
   LLM_TEMPERATURE: readFloat('LLM_TEMPERATURE', 0),
+  // Diagnostico local: loga prompt/resposta de cada lote do modelo.
+  // NUNCA ligue em producao sem politica de retencao (contem dados da oferta).
+  LLM_DEBUG: readBoolean('LLM_DEBUG', false),
+  LLM_DEBUG_PROMPT: readBoolean('LLM_DEBUG_PROMPT', false),
 
   AI_MODEL_ID: readString('AI_MODEL_ID', 'qwen2.5-0.5b-instruct-q4_k_m'),
   AI_MODEL_VERSION: readString('AI_MODEL_VERSION'),
