@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+src/models/*.gguf
+src/models/*.bin
+models/
+*.log
+.DS_Store
+coverage/
