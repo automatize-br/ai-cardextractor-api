@@ -6,6 +6,8 @@
 **Relacionado:** `../../API/docs/adr/004-deterministic-scraping.md` (parcialmente superseded)
 
 **Revisões:** 2026-10-21 — repositório do serviço renomeado para `ai-extractor-api`; ADR movida para `ai-extractor-api/docs/`.
+**Revisões:** 2026-10-21 — pós-revisão adversarial: fallback preserva decisões heurísticas; kill switch por request; fila single-flight no provider; `needsReview` explícito.
+**Revisões:** 2026-10-21 — adjudicação híbrida na prática: heurísticas resolvem preço/imagem/original e o modelo 0.5B decide apenas título ambíguo, em lotes de 2, respondendo letras (A-L).
 
 ---
 

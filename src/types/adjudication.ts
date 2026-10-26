@@ -48,14 +48,21 @@ export interface AdjudicationPack {
   cards: AdjudicationCard[]
 }
 
+export type DecisionSource = 'heuristic' | 'model'
+
 export interface AdjudicationDecision {
   cardId: string
+  /** Quem decidiu: regras deterministicas ou o modelo. */
+  source: DecisionSource
   isProduct: boolean
   titleId: string | null
   priceId: string | null
   originalPriceId: string | null
   imageId: string | null
   confidence: number
+  /** Oferta completa, mas incerta: enviar para revisao em vez de descartar. */
+  needsReview: boolean
+  reviewReasons: ReviewReason[]
 }
 
 export type RejectionReason =
@@ -66,13 +73,16 @@ export type RejectionReason =
   | 'currency_mismatch'
   | 'ambiguous_price'
   | 'invalid_model_output'
+  | 'model_fallback'
 
 export interface AdjudicationRejection {
   cardId: string
   reason: RejectionReason
 }
 
-export type AdjudicationMode = 'llm' | 'fake' | 'fallback'
+export type AdjudicationMode = 'llm' | 'heuristic' | 'fake' | 'fallback'
+
+export type ReviewReason = 'low_confidence' | 'ambiguous_title' | 'model_fallback'
 
 export interface AdjudicationResult {
   packVersion: string
@@ -91,7 +101,9 @@ export interface AdjudicationStats {
   day: string
   total: number
   llm: number
+  heuristic: number
   fallback: number
+  modelCalls: number
   avgLatencyMs: number
   validationFailures: number
 }
