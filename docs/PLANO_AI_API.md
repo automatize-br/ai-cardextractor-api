@@ -1,6 +1,6 @@
 # Plano de Implementação — `ai-extractor-api`
 
-**Versão:** 1.0.12
+**Versão:** 1.0.13
 **Criado em:** 2026-10-21
 **Última atualização:** 2026-10-21
 **Status:** Em implementação
@@ -12,6 +12,7 @@
 
 | Data | Versão | Alteração |
 | --- | --- | --- |
+| 2026-10-26 | 1.0.13 | Pasta de modelos LLM renomeada de `src/models/` para `src/LLMS/` (e o volume externo de `models/` para `LLMS/`) para eliminar a ambiguidade com `src/modules/models/` e evitar que padrões de `.gitignore` escondam código. Defaults de `AI_MODEL_PATH` e `model:download` atualizados. |
 | 2026-10-21 | 1.0.0 | Criação do plano. Define estrutura de pastas espelhando `../../API`, contrato, providers, persistência, scripts e fases. |
 | 2026-10-21 | 1.0.1 | Serviço renomeado de `ai-api` para `ai-extractor-api`; este plano passou a viver em `ai-extractor-api/docs/`. |
 | 2026-10-21 | 1.0.2 | Porta padrão alterada de 3010 para 5555 (evita conflito com outros serviços locais). |
@@ -109,20 +110,20 @@ ai-extractor-api/
 │   │       └── types.ts
 │   ├── types/
 │   │   └── adjudication.ts
-│   └── models/
+│   └── LLMS/
 │       ├── .gitkeep
 │       └── (modelo .gguf)
 ├── tests/
 │   ├── setup.ts
 │   ├── unit/
 │   └── integration/
-└── models/            (opcional: caminho externo configurável)
+└── LLMS/            (opcional: caminho externo configurável)
 ```
 
 Notas:
-- `src/models` guarda o `.gguf` versionado por download, fora do git.
+- `src/LLMS` guarda o `.gguf` versionado por download, fora do git.
 - `AI_MODEL_PATH` pode apontar para qualquer caminho absoluto/relativo.
-- `models/` externo é suportado para volumes em produção.
+- `LLMS/` externo é suportado para volumes em produção.
 
 ---
 
@@ -167,7 +168,7 @@ Fora de dev/teste, chave vazia derruba o boot (fail-closed).
 | `LLM_DEBUG` | `false` | loga cada lote: cards, timeout, resposta crua, tokens, latência e escolha por card |
 | `LLM_DEBUG_PROMPT` | `false` | inclui system/user no log (contém dados da oferta; só local) |
 | `AI_MODEL_ID` | `qwen2.5-0.5b-instruct-q4_k_m` | id lógico |
-| `AI_MODEL_PATH` | `src/models/qwen2.5-0.5b-instruct-q4_k_m.gguf` | arquivo GGUF |
+| `AI_MODEL_PATH` | `src/LLMS/qwen2.5-0.5b-instruct-q4_k_m.gguf` | arquivo GGUF |
 | `AI_MODEL_CONTEXT` | `2048` | contexto |
 | `AI_MODEL_THREADS` | `` | threads (vazio = auto) |
 | `AI_MODELS_JSON` | `` | catálogo extra `[{id,provider,path,contextSize}]` |

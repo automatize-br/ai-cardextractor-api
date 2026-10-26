@@ -98,7 +98,7 @@ export const env = {
 
   AI_MODEL_ID: readString('AI_MODEL_ID', 'qwen2.5-0.5b-instruct-q4_k_m'),
   AI_MODEL_VERSION: readString('AI_MODEL_VERSION'),
-  AI_MODEL_PATH: readString('AI_MODEL_PATH', 'src/models/qwen2.5-0.5b-instruct-q4_k_m.gguf'),
+  AI_MODEL_PATH: readString('AI_MODEL_PATH', 'src/LLMS/qwen2.5-0.5b-instruct-q4_k_m.gguf'),
   AI_MODEL_CONTEXT: readInt('AI_MODEL_CONTEXT', 2048),
   AI_MODEL_THREADS: readInt('AI_MODEL_THREADS', 0),
   AI_MODELS_JSON: readString('AI_MODELS_JSON'),

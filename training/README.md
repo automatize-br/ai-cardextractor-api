@@ -90,7 +90,7 @@ python3 ~/llama.cpp/convert_hf_to_gguf.py training/out/merged --outfile ~/qwen-f
 ~/llama.cpp/build/bin/llama-quantize ~/qwen-ft.f16.gguf ~/qwen-ft.q4_k_m.gguf Q4_K_M
 ```
 
-Copie o GGUF para `src/models/` (ou aponte `AI_MODEL_PATH`), ajuste
+Copie o GGUF para `src/LLMS/` (ou aponte `AI_MODEL_PATH`), ajuste
 `AI_MODEL_VERSION` e reinicie com `AI_ADJ_MODE=shadow` para comparar com a
 linha de base antes de `assist`.
 
