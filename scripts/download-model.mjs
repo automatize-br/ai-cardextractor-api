@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Baixa o modelo base GGUF (Qwen2.5-0.5B-Instruct Q4_K_M) para src/models.
+// Baixa o modelo base GGUF (Qwen2.5-0.5B-Instruct Q4_K_M) para src/LLMS.
 // Idempotente: se o arquivo final ja existe, nao baixa de novo.
 // Overrides: MODEL_URL, MODEL_FILE.
 
@@ -10,7 +10,7 @@ import { pipeline } from 'node:stream/promises'
 
 const DEFAULT_URL =
   'https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf?download=true'
-const DEFAULT_FILE = 'src/models/qwen2.5-0.5b-instruct-q4_k_m.gguf'
+const DEFAULT_FILE = 'src/LLMS/qwen2.5-0.5b-instruct-q4_k_m.gguf'
 
 const url = process.env.MODEL_URL || DEFAULT_URL
 const target = resolve(process.env.MODEL_FILE || DEFAULT_FILE)
