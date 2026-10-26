@@ -5,7 +5,7 @@ dist/
 !.env.example
 src/models/*.gguf
 src/models/*.bin
-models/
+/models/
 *.log
 .DS_Store
 coverage/
