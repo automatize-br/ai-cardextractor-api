@@ -22,13 +22,5 @@ num    ::= [0-9]+
 ws     ::= [ \t]*
 `.trim()
 
-export const NONE_LETTER = '-'
-export const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'] as const
-
-export function letterFor(index: number): string {
-  return LETTERS[index] ?? '-'
-}
-
-export function indexForLetter(letter: string): number {
-  return LETTERS.indexOf(letter as (typeof LETTERS)[number])
-}
+// Compatibilidade temporária: a fonte única das referências é candidateRef.ts.
+export { LETTERS, NONE_LETTER, letterFor, indexForLetter } from './candidateRef.ts'

@@ -12,6 +12,10 @@ export type ApiErrorCode =
   | 'RATE_LIMITED'
   | 'PACK_INVALID'
   | 'PACK_TOO_LARGE'
+  | 'UNKNOWN_PROFILE'
+  | 'INPUT_INVALID'
+  | 'PROFILE_MISCONFIGURED'
+  | 'MODEL_DISABLED'
   | 'MODEL_UNAVAILABLE'
   | 'MODEL_TIMEOUT'
   | 'AI_PROVIDER_ERROR'
@@ -56,6 +60,22 @@ export class ApiError extends Error {
 
   static modelUnavailable(message = 'Model unavailable'): ApiError {
     return new ApiError(503, 'MODEL_UNAVAILABLE', message)
+  }
+
+  static unknownProfile(message = 'Unknown profile'): ApiError {
+    return new ApiError(404, 'UNKNOWN_PROFILE', message)
+  }
+
+  static inputInvalid(message = 'Invalid input', details: unknown = null): ApiError {
+    return new ApiError(400, 'INPUT_INVALID', message, details)
+  }
+
+  static profileMisconfigured(message = 'Profile misconfigured'): ApiError {
+    return new ApiError(500, 'PROFILE_MISCONFIGURED', message)
+  }
+
+  static modelDisabled(message = 'Model disabled'): ApiError {
+    return new ApiError(503, 'MODEL_DISABLED', message)
   }
 
   static internal(message = 'Internal server error'): ApiError {

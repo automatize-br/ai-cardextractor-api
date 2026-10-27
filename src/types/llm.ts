@@ -13,6 +13,13 @@ export interface ModelConfig {
   version: string
 }
 
+export interface CompletionMetadata {
+  profileId?: string
+  profileMode?: string
+  /** Apenas para testes determinísticos do pipeline genérico. */
+  fakeOutput?: unknown
+}
+
 export interface CompletionInput {
   system: string
   user: string
@@ -21,6 +28,12 @@ export interface CompletionInput {
   temperature: number
   timeoutMs: number
   signal: AbortSignal | null
+  /** Metadados estruturados; o fake usa isto em vez de parsear o prompt. */
+  metadata?: CompletionMetadata
+  /** JSON Schema de saída, quando o provider suportar. */
+  responseSchema?: Record<string, unknown> | null
+  promptCacheKey?: string
+  promptCacheTtl?: string
 }
 
 export interface CompletionResult {
@@ -28,6 +41,9 @@ export interface CompletionResult {
   tokensIn: number
   tokensOut: number
   latencyMs: number
+  cachedTokens?: number
+  cacheWriteTokens?: number
+  finishReason?: string | null
 }
 
 export interface LlmProvider {

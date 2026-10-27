@@ -2,9 +2,11 @@ import './config/timezone.ts'
 import http from 'node:http'
 import { createApp } from './app.ts'
 import { env, isProductionEnvironment } from './config/env.ts'
+import { validateConfig } from './config/validate.ts'
 import { connectDB, disconnectDB } from './providers/mongoose.ts'
 import { closePersistence } from './providers/persistence/index.ts'
 import { disposeProviders, getProvider } from './providers/llm/index.ts'
+import { disposeCatalogProviders } from './providers/llm/catalogProvider.ts'
 
 // Fail-closed: fora de dev/teste, sem chave interna o servico nao sobe.
 if (isProductionEnvironment() && env.AI_INTERNAL_KEY === '') {
@@ -24,6 +26,13 @@ if (
   (env.MONGO_URL === '' || env.MONGO_USER === '' || env.MONGO_PASSWORD === '')
 ) {
   console.error('[Server] AI_PERSISTENCE=mongo sem MONGO_URI nem MONGO_USER/MONGO_PASSWORD/MONGO_URL.')
+  process.exit(1)
+}
+
+try {
+  validateConfig()
+} catch (error) {
+  console.error('[Server] Configuração inválida:', error instanceof Error ? error.message : error)
   process.exit(1)
 }
 
@@ -54,7 +63,12 @@ function shutdown(signal: string): void {
   shuttingDown = true
   console.log(`[Server] ${signal} recebido — encerrando...`)
   server.close(() => {
-    void Promise.allSettled([disposeProviders(), closePersistence(), disconnectDB()]).finally(() => process.exit(0))
+    void Promise.allSettled([
+      disposeProviders(),
+      disposeCatalogProviders(),
+      closePersistence(),
+      disconnectDB(),
+    ]).finally(() => process.exit(0))
   })
   setTimeout(() => process.exit(0), 8_000).unref()
 }

@@ -1,6 +1,6 @@
 import { setTimeout as delay } from 'node:timers/promises'
 import { ApiError } from '../../exceptions/ApiError.ts'
-import { NONE_LETTER } from './grammar.ts'
+import { NONE_LETTER } from './candidateRef.ts'
 import type { CompletionInput, CompletionResult, LlmProvider } from './types.ts'
 
 // ============================================================================
@@ -157,6 +157,19 @@ export class FakeProvider implements LlmProvider {
       }
       await delay(delayMs, undefined, input.signal ? { signal: input.signal } : undefined)
     }
+
+    // Pipeline v2: o fake recebe a saída esperada por metadado estruturado.
+    // Não há parsing de prompt aqui — o formato do prompt é livre.
+    if (input.metadata?.fakeOutput !== undefined) {
+      const text = JSON.stringify(input.metadata.fakeOutput)
+      return {
+        text,
+        tokensIn: Math.ceil((input.system.length + input.user.length) / 4),
+        tokensOut: Math.ceil(text.length / 4),
+        latencyMs: Date.now() - started,
+      }
+    }
+
     const cards = parsePrompt(input.user)
     const payload = { d: cards.map((card) => decide(card)) }
     return {

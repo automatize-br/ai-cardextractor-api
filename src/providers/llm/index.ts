@@ -41,6 +41,17 @@ function parseExtraModels(): ModelConfig[] {
     if (typeof raw !== 'object' || raw === null) throw new Error('AI_MODELS_JSON item must be an object')
     const item = raw as Record<string, unknown>
     if (typeof item['id'] !== 'string' || item['id'] === '') throw new Error('AI_MODELS_JSON item.id is required')
+
+    // Formato v2 (catálogo declarativo): o runtime novo lê em config/models.ts.
+    // O registry legado ignora para não tentar instanciar um provider que só
+    // existe no pipeline v2.
+    const isV2 =
+      typeof item['model'] === 'string' ||
+      typeof item['baseUrl'] === 'string' ||
+      typeof item['apiKeyEnv'] === 'string' ||
+      typeof item['structuredOutput'] === 'string'
+    if (isV2) continue
+
     const provider = item['provider'] ?? env.LLM_PROVIDER
     if (!isProviderName(provider)) throw new Error('AI_MODELS_JSON item.provider is invalid')
     models.push({

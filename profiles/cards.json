@@ -1,0 +1,150 @@
+{
+  "id": "cards",
+  "version": "2.0.0",
+  "description": "Seleciona título, preço, preço original e imagem de cards de e-commerce.",
+  "mode": "selection",
+  "input": {
+    "schema": {
+      "type": "object",
+      "required": ["marketplace", "cards"],
+      "additionalProperties": false,
+      "properties": {
+        "marketplace": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "cards": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 30,
+          "items": {
+            "type": "object",
+            "required": ["cardId", "titleCandidates", "priceCandidates", "imageCandidates"],
+            "additionalProperties": false,
+            "properties": {
+              "cardId": { "type": "string" },
+              "titleCandidates": {
+                "type": "array",
+                "maxItems": 12,
+                "items": {
+                  "type": "object",
+                  "required": ["id", "text"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": { "type": "string" },
+                    "text": { "type": "string" }
+                  }
+                }
+              },
+              "priceCandidates": {
+                "type": "array",
+                "maxItems": 12,
+                "items": {
+                  "type": "object",
+                  "required": ["id", "text", "currency", "cents", "kind"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": { "type": "string" },
+                    "text": { "type": "string" },
+                    "currency": { "type": "string" },
+                    "cents": { "type": "integer", "minimum": 0 },
+                    "kind": { "type": "string", "enum": ["current", "original", "installment", "unknown"] }
+                  }
+                }
+              },
+              "imageCandidates": {
+                "type": "array",
+                "maxItems": 12,
+                "items": {
+                  "type": "object",
+                  "required": ["id", "url"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": { "type": "string" },
+                    "url": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "collection": "cards",
+    "maxItems": 30,
+    "maxChars": 50000
+  },
+  "output": {
+    "schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["items"],
+      "properties": {
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 30,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["item", "isProduct", "title", "price", "original", "image", "confidence"],
+            "properties": {
+              "item": { "type": "integer", "minimum": 1, "maximum": 30 },
+              "isProduct": { "type": "boolean" },
+              "title": { "type": "string", "enum": ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "-"] },
+              "price": { "type": "string", "enum": ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "-"] },
+              "original": { "type": "string", "enum": ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "-"] },
+              "image": { "type": "string", "enum": ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "-"] },
+              "confidence": { "type": "integer", "minimum": 0, "maximum": 100 }
+            }
+          }
+        }
+      }
+    }
+  },
+  "prompt": {
+    "system": "Você adjudica cards de e-commerce. Escolha apenas candidatos existentes. Nunca invente título, preço, URL ou ID. Se não for produto ou faltar candidato obrigatório, marque isProduct=false e use '-' nos campos.",
+    "rules": [
+      "Produto precisa de título com pelo menos 8 caracteres, preço current em BRL e imagem.",
+      "Banner, avaliação, frete grátis, cupom de desconto e 'ver mais' não são produtos.",
+      "Preço ambíguo (dois current BRL com centavos diferentes) não é produto.",
+      "O preço original só pode ser escolhido se for maior que o preço current.",
+      "Responda exatamente um item para cada card, na ordem, sem repetir."
+    ],
+    "examples": [],
+    "userTemplate": "<INPUT>\n{{input}}\n</INPUT>\nResponda apenas o JSON do schema, com um item por card."
+  },
+  "validation": {
+    "grounding": "candidate_ids",
+    "coverage": "exact",
+    "candidateFields": {
+      "title": "titleCandidates",
+      "price": "priceCandidates",
+      "original": "priceCandidates",
+      "image": "imageCandidates"
+    },
+    "rules": [
+      { "type": "required", "field": "title" },
+      { "type": "required", "field": "price" },
+      { "type": "required", "field": "image" },
+      { "type": "custom", "name": "current_price_brl", "params": {} },
+      { "type": "custom", "name": "original_gt_current", "params": {} },
+      { "type": "custom", "name": "unique_current_price", "params": {} }
+    ],
+    "fallback": "heuristic",
+    "minConfidence": 0.6
+  },
+  "rulesVersion": "1",
+  "model": {
+    "id": "fast",
+    "allowedModels": ["fast"],
+    "temperature": 0,
+    "maxTokens": 800,
+    "timeoutMs": 30000,
+    "batchSize": 10,
+    "structuredOutput": "json_schema"
+  },
+  "cache": {
+    "appTtlMs": 86400000,
+    "promptPrefix": true,
+    "storeQuotes": true,
+    "maxPromptCacheBlocks": 1
+  }
+}

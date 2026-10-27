@@ -1,5 +1,5 @@
 import type { AdjudicationPack } from '../../types/adjudication.ts'
-import { letterFor } from './grammar.ts'
+import { letterFor } from './candidateRef.ts'
 
 // ============================================================================
 // Prompt do adjudicador (modelo 0.5B, CPU, contexto 2048).

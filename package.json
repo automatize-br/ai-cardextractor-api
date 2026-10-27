@@ -1,7 +1,7 @@
 {
   "name": "automatize.ai-extractor-api",
   "version": "1.0.0",
-  "description": "Microservico de adjudicacao de ofertas (deterministico + IA local)",
+  "description": "Microservico de extracao/qualificacao universal, spec-driven e provider-agnostic",
   "type": "module",
   "main": "src/server.ts",
   "scripts": {
@@ -15,6 +15,9 @@
     "test:unit": "node scripts/run-tests.mjs tests/unit",
     "model:download": "node scripts/download-model.mjs",
     "model:smoke": "tsx scripts/smoke-llm.ts",
+    "config:validate": "tsx scripts/config-validate.ts",
+    "config:encode": "tsx scripts/config-encode.ts",
+    "config:decode": "tsx scripts/config-decode.ts",
     "eval:adjudication": "tsx scripts/eval-adjudication.ts",
     "dataset:build": "tsx scripts/build-dataset.ts",
     "rollout:report": "tsx scripts/rollout-report.ts"
@@ -30,6 +33,7 @@
     "typescript": "^6.0.3"
   },
   "dependencies": {
+    "ajv": "^8.20.0",
     "compression": "^1.7.4",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",

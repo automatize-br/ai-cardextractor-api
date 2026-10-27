@@ -71,6 +71,44 @@ export const env = {
   AI_ADJ_MODE: readString('AI_ADJ_MODE', 'off'),
   AI_MIN_CONFIDENCE: readFloat('AI_MIN_CONFIDENCE', 0.6),
 
+  // Config v2. Defaults seguros: sem AI_MODE explícito o modelo fica desligado.
+  AI_CONFIG_VERSION: readString('AI_CONFIG_VERSION', '2'),
+  AI_ENGINE_VERSION: readString('AI_ENGINE_VERSION', '2'),
+  AI_DEFAULT_PROFILE: readString('AI_DEFAULT_PROFILE', 'cards'),
+  AI_DEFAULT_MODEL: readString('AI_DEFAULT_MODEL', ''),
+  AI_MODE: readString('AI_MODE', ''),
+  AI_FAIL_OPEN: readBoolean('AI_FAIL_OPEN', true),
+  AI_TIMEOUT_MS: readInt('AI_TIMEOUT_MS', 30000),
+  AI_LEGACY_TIMEOUT_MS: readInt('AI_LEGACY_TIMEOUT_MS', readInt('LLM_TIMEOUT_MS', 5000)),
+  AI_MAX_ITEMS: readInt('AI_MAX_ITEMS', readInt('LLM_MAX_CARDS', 30)),
+  AI_MAX_INPUT_CHARS: readInt('AI_MAX_INPUT_CHARS', 50000),
+  AI_MAX_OUTPUT_TOKENS: readInt('AI_MAX_OUTPUT_TOKENS', readInt('LLM_MAX_TOKENS', 2048)),
+  AI_MAX_CONCURRENT_PROVIDER_CALLS: readInt(
+    'AI_MAX_CONCURRENT_PROVIDER_CALLS',
+    readInt('LLM_MAX_QUEUE', 4),
+  ),
+  AI_BATCH_SIZE: readInt('AI_BATCH_SIZE', 10),
+  AI_LEGACY_BATCH_SIZE: readInt('AI_LEGACY_BATCH_SIZE', readInt('LLM_CHUNK_SIZE', 2)),
+  AI_TEMPERATURE: readFloat('AI_TEMPERATURE', readFloat('LLM_TEMPERATURE', 0)),
+  AI_TOP_P: readFloat('AI_TOP_P', 1),
+  AI_SEED: readInt('AI_SEED', 42),
+  AI_MAX_RETRIES: readInt('AI_MAX_RETRIES', 1),
+  AI_LOG_PROMPTS: readBoolean('AI_LOG_PROMPTS', readBoolean('LLM_DEBUG_PROMPT', false)),
+  AI_APP_CACHE: readString('AI_APP_CACHE', 'memory'),
+  AI_APP_CACHE_TTL_MS: readInt('AI_APP_CACHE_TTL_MS', 86_400_000),
+  AI_APP_CACHE_MAX: readInt('AI_APP_CACHE_MAX', 5000),
+  AI_APP_CACHE_STORE_QUOTES: readBoolean('AI_APP_CACHE_STORE_QUOTES', true),
+  AI_REDIS_URL: readString('AI_REDIS_URL'),
+  AI_PROMPT_CACHE: readString('AI_PROMPT_CACHE', 'auto'),
+  AI_PROMPT_CACHE_TTL: readString('AI_PROMPT_CACHE_TTL', '1h'),
+  AI_PROMPT_CACHE_MAX_BLOCKS: readInt('AI_PROMPT_CACHE_MAX_BLOCKS', 1),
+  AI_ALLOW_INSECURE_LLM_URL: readBoolean('AI_ALLOW_INSECURE_LLM_URL', false),
+  AI_DEBUG: readBoolean('AI_DEBUG', readBoolean('LLM_DEBUG', false)),
+  AI_REPLAY_STORE_PACK: readBoolean('AI_REPLAY_STORE_PACK', false),
+  AI_PROFILES_JSON: readString('AI_PROFILES_JSON'),
+  AI_PROFILES_B64: readString('AI_PROFILES_B64'),
+  VISION_VERSION: readString('VISION_VERSION'),
+
   // Versoes carimbadas em cada resposta/registro. Mudar o prompt ou o formato
   // do pack exige incrementar a env correspondente (nunca hardcode).
   PACK_VERSION: readString('PACK_VERSION', '1'),
@@ -126,8 +164,8 @@ export function isTestEnvironment(): boolean {
 }
 
 export function isDevelopmentEnvironment(): boolean {
-  const value = env.ENVIRONMENT.toLowerCase()
-  return value === '' || value === 'dev' || value === 'development' || isTestEnvironment()
+  const value = env.ENVIRONMENT.trim().toLowerCase()
+  return value === '' || value === 'dev' || value === 'develop' || value === 'development' || isTestEnvironment()
 }
 
 export function isProductionEnvironment(): boolean {
@@ -139,9 +177,16 @@ export type AdjMode = 'off' | 'shadow' | 'assist' | 'on'
 /**
  * Kill switch lido a CADA request (nao congelado no boot), para permitir
  * desligar o modelo sem restart em producao.
+ *
+ * Precedencia: AI_MODE (v2) > AI_ADJ_MODE (legado) > off.
  */
-export function getAdjMode(): AdjMode {
-  const value = (process.env['AI_ADJ_MODE'] ?? 'off').trim().toLowerCase()
+export function getMode(): AdjMode {
+  const raw = process.env['AI_MODE']?.trim() || process.env['AI_ADJ_MODE']?.trim() || 'off'
+  const value = raw.toLowerCase()
   if (value === 'shadow' || value === 'assist' || value === 'on') return value
   return 'off'
+}
+
+export function getAdjMode(): AdjMode {
+  return getMode()
 }
