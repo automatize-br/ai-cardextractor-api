@@ -6,15 +6,12 @@ import { listProfiles } from './profiles.ts'
 // Fail-fast de configuração v2. Roda no boot (e no `npm run config:validate`).
 // ============================================================================
 
-const CACHE_MODES = new Set(['memory', 'redis', 'off'])
+const CACHE_MODES = new Set(['memory', 'off'])
 const PROMPT_CACHE_MODES = new Set(['auto', 'on', 'off'])
 
 export function validateConfig(): void {
   if (!CACHE_MODES.has(env.AI_APP_CACHE)) {
-    throw new Error(`AI_APP_CACHE must be "memory", "redis" or "off" — received "${env.AI_APP_CACHE}"`)
-  }
-  if (env.AI_APP_CACHE === 'redis') {
-    throw new Error('AI_APP_CACHE=redis ainda não está implementado; use "memory" ou "off"')
+    throw new Error(`AI_APP_CACHE must be "memory" or "off" — received "${env.AI_APP_CACHE}"`)
   }
   if (!PROMPT_CACHE_MODES.has(env.AI_PROMPT_CACHE)) {
     throw new Error(`AI_PROMPT_CACHE must be "auto", "on" or "off" — received "${env.AI_PROMPT_CACHE}"`)

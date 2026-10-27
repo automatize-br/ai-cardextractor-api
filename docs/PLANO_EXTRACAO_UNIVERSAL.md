@@ -90,7 +90,7 @@ ai-extractor-api
    │    ├─ fakeProvider.ts
    │    └─ registry.ts
    ├─ cache/
-   │    ├─ appCache.ts            # memory LRU | redis | off
+   │    ├─ appCache.ts            # memory LRU | off
    │    ├─ cacheKey.ts            # hash canônico
    │    └─ singleFlight.ts
    └─ modules/adjudication/       # heurísticas existentes, viram “rules” do perfil cards
@@ -350,11 +350,11 @@ npm run profile:new -- --id ofertas --mode extraction # scaffold validável
 | `AI_MAX_RETRIES` | `1` | retry só para 429/5xx/timeout; nunca para schema inválido |
 | `AI_LOG_PROMPTS` | `false` | nunca ligar em produção sem retenção |
 | `AI_STORE_PACKS` | `false` | privacidade |
-| `AI_APP_CACHE` | `memory` | `memory \| redis \| off` |
+| `AI_APP_CACHE` | `memory` | `memory \| off` |
 | `AI_APP_CACHE_TTL_MS` | `86400000` | 24h |
 | `AI_APP_CACHE_MAX` | `5000` | LRU |
 | `AI_APP_CACHE_STORE_QUOTES` | `true` | `true`: cacheia output completo de `extraction` (inclui quotes); `false`: **não cacheia** perfis `extraction` (evita shape diferente entre hit/miss) |
-| `AI_REDIS_URL` | vazio | obrigatório se `AI_APP_CACHE=redis` |
+
 | `AI_PROMPT_CACHE` | `auto` | `auto \| on \| off`; `auto` liga só se o prefixo atingir o mínimo |
 | `AI_PROMPT_CACHE_TTL` | `1h` | `5m \| 1h` quando suportado |
 | `AI_PROMPT_CACHE_MAX_BLOCKS` | `1` | orçamento de breakpoints por request |
@@ -471,8 +471,8 @@ cacheKey = sha256(stableStringify({
 - `profileHash` cobre schema, prompt, regras, exemplos, `userTemplate`, `rulesVersion` e `cache`.
 - Cache só guarda resultado **válido**: `fallbackReason === null`, `mode !== 'fallback'`, sem `model_fallback`, sem `invalid_model_output`.
 - Timeout/fallback/erro de provider **nunca** entram no cache.
-- `single-flight`: duas requisições iguais simultâneas compartilham uma chamada. O líder é ref-contado; se o líder abortar, a chamada compartilhada continua para os followers. Em Redis, lock com TTL e escopo documentado.
-- TTL e LRU configuráveis; Redis opcional para múltiplas instâncias.
+- `single-flight`: duas requisições iguais simultâneas compartilham uma chamada (escopo single-instance).
+- TTL e LRU configuráveis; cache exclusivamente em memória, sem Redis.
 - Invalidação natural por versão: mudar perfil/prompt/modelo/regra/modo muda a chave.
 - Métricas: `app_hit`, `app_miss`, `provider_cached_tokens`, `provider_cache_write_tokens`, `tokens_in`, `tokens_out`, `latency_ms`.
 - Privacidade: em `selection`, o resultado são IDs; em `extraction`, contém quotes. `AI_APP_CACHE_STORE_QUOTES=false` **desabilita o cache de aplicação para perfis `extraction`** (não remove quotes do output, para não devolver shape diferente em hit/miss). `AI_STORE_PACKS=false` não guarda o input.
@@ -751,10 +751,10 @@ AI_MODELS_JSON=[{"id":"local","version":"qwen3-8b@2026-10","provider":"openai-co
 
 **Critério de saída:** nenhum import de `src/LLMS`/`.gguf`; `/v1/ready` e `/v1/models` coerentes; boot falha com config antiga.
 
-### Fase 6 — Providers adicionais e Redis (opcional)
+### Fase 6 — Providers adicionais
 
 1. Anthropic/Gemini somente após o pipeline estar estável.
-2. Redis somente se houver mais de uma instância; documentar lock distribuído.
+2. Cache permanece em memória; sem Redis.
 
 **Critério de saída:** mesmo perfil executa nos quatro providers; usage/cache normalizados.
 
@@ -836,7 +836,7 @@ Gate mínimo para `assist`: ≥ baseline atual de acurácia, 0 IDs inventados, 0
 
 1. **Formato do `.env`:** JSON one-line como padrão; B64 opt-in para quebra de linha. Recomendo essa ordem (B64 não é criptografia e é ruim de revisar).
 2. **Escopo inicial:** `cards` + `offers` na Fase 2/4; `extraction` genérico e `score` na Fase 4. “Qualquer coisa” via JSON Schema é suportado, mas o primeiro perfil novo precisa de eval.
-3. **Cache distribuído:** memory agora, Redis só se houver mais de uma instância. Recomendo memory na VPS atual.
+3. **Cache:** exclusivamente em memória (LRU/TTL), sem Redis. A VPS atual roda uma instância.
 4. **Modelo default:** `fake` em dev; catálogo obrigatório em produção. Recomendo `fast` (OpenAI/Anthropic) e local via HTTP como opção.
 5. **Compatibilidade:** manter `/v1/adjudicate` até API/FRONT migrarem, com prazo de 2 releases.
 6. **Regras:** semântica complexa em código versionado; parâmetros e regras simples no `.env`. Se você quiser 100% declarativo, isso é uma DSL e deve ser um projeto separado.
@@ -881,7 +881,7 @@ Gate mínimo para `assist`: ≥ baseline atual de acurácia, 0 IDs inventados, 0
 | Fase 3 — cache | **Parcial** | cache de aplicação LRU/TTL, hit/miss, single-flight, chave por modo/versões; métricas de prompt cache e política de abort do líder pendentes. |
 | Fase 4 — extração/score | **Parcial** | grounding `source_quotes`, cobertura exata, referências A-L, regras declarativas/custom de cards e fallback heurístico genérico para seleção (`off`, `shadow`, falha/invalid output); `score` pendente. |
 | Fase 5 — remoção do modelo local | **Concluída** | `src/LLMS`, `node-llama-cpp`, `llamaCppProvider`, scripts de download/smoke e campos `AI_MODEL_PATH/CONTEXT/THREADS` removidos; modelo local via `openai-compatible` HTTP. |
-| Fase 6 — providers adicionais | **Parcial** | Anthropic Messages e Gemini generateContent implementados com structured outputs/cache/usage; Redis ainda pendente. |
+| Fase 6 — providers adicionais | **Concluída** | Anthropic Messages e Gemini generateContent implementados com structured outputs/cache/usage. Cache em memória, sem Redis. |
 | Fase 7 — rollout | **Parcial** | `npm run eval:profile` com fixture `cards` (caso válido + fallback); shadow/assist/on com packs reais pendentes. |
 
 **Validação local:** `npm run typecheck`, `npm run build`, `npm run config:validate`, `npm run eval:profile` (2/2) e `npm test` verdes (110 testes) na data acima. O legado `/v1/adjudicate` continua com contrato dourado.
