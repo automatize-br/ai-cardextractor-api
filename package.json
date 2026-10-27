@@ -17,6 +17,7 @@
     "config:encode": "tsx scripts/config-encode.ts",
     "config:decode": "tsx scripts/config-decode.ts",
     "eval:adjudication": "tsx scripts/eval-adjudication.ts",
+    "eval:profile": "tsx scripts/eval-profile.ts",
     "dataset:build": "tsx scripts/build-dataset.ts",
     "rollout:report": "tsx scripts/rollout-report.ts"
   },
