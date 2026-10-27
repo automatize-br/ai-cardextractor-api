@@ -13,8 +13,8 @@ export function validateConfig(): void {
   if (!CACHE_MODES.has(env.AI_APP_CACHE)) {
     throw new Error(`AI_APP_CACHE must be "memory", "redis" or "off" — received "${env.AI_APP_CACHE}"`)
   }
-  if (env.AI_APP_CACHE === 'redis' && env.AI_REDIS_URL === '') {
-    throw new Error('AI_APP_CACHE=redis requires AI_REDIS_URL')
+  if (env.AI_APP_CACHE === 'redis') {
+    throw new Error('AI_APP_CACHE=redis ainda não está implementado; use "memory" ou "off"')
   }
   if (!PROMPT_CACHE_MODES.has(env.AI_PROMPT_CACHE)) {
     throw new Error(`AI_PROMPT_CACHE must be "auto", "on" or "off" — received "${env.AI_PROMPT_CACHE}"`)
