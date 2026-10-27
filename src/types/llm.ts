@@ -8,8 +8,6 @@ export type LlmProviderName = 'fake' | 'llamacpp' | 'http'
 export interface ModelConfig {
   id: string
   provider: LlmProviderName
-  path: string
-  contextSize: number
   version: string
 }
 

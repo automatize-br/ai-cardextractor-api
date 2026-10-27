@@ -13,8 +13,6 @@
     "start": "node dist/server.js",
     "test": "node scripts/run-tests.mjs tests/unit tests/integration",
     "test:unit": "node scripts/run-tests.mjs tests/unit",
-    "model:download": "node scripts/download-model.mjs",
-    "model:smoke": "tsx scripts/smoke-llm.ts",
     "config:validate": "tsx scripts/config-validate.ts",
     "config:encode": "tsx scripts/config-encode.ts",
     "config:decode": "tsx scripts/config-decode.ts",
@@ -41,7 +39,6 @@
     "express-rate-limit": "^8.7.0",
     "helmet": "^8.3.0",
     "mongoose": "^9.7.4",
-    "node-llama-cpp": "^3.22.2",
     "uuid": "^11.1.0",
     "zod": "^4.6.5"
   }

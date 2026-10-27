@@ -2,6 +2,8 @@ import { ApiError } from '../../exceptions/ApiError.ts'
 import { modelApiKey } from '../../config/models.ts'
 import type { RegisteredModel } from '../../types/model.ts'
 import type { CompletionMetadata } from '../../types/llm.ts'
+import { AnthropicProvider } from './anthropicProvider.ts'
+import { GeminiProvider } from './geminiProvider.ts'
 
 // ============================================================================
 // Provider de execução do catálogo v2 (modelos declarados no .env).
@@ -219,8 +221,11 @@ export function getCatalogProvider(model: RegisteredModel): CatalogLlmProvider {
       created = new OpenAICompatibleProvider(model)
       break
     case 'anthropic':
+      created = new AnthropicProvider(model)
+      break
     case 'gemini':
-      throw ApiError.modelUnavailable(`Provider "${model.provider}" ainda não implementado no runtime v2`)
+      created = new GeminiProvider(model)
+      break
   }
 
   instances.set(model.id, created)

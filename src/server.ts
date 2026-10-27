@@ -5,7 +5,7 @@ import { env, isProductionEnvironment } from './config/env.ts'
 import { validateConfig } from './config/validate.ts'
 import { connectDB, disconnectDB } from './providers/mongoose.ts'
 import { closePersistence } from './providers/persistence/index.ts'
-import { disposeProviders, getProvider } from './providers/llm/index.ts'
+import { disposeProviders } from './providers/llm/index.ts'
 import { disposeCatalogProviders } from './providers/llm/catalogProvider.ts'
 
 // Fail-closed: fora de dev/teste, sem chave interna o servico nao sobe.
@@ -82,18 +82,6 @@ connectDB()
       console.log(
         `[Server] provider=${env.LLM_PROVIDER} model=${env.AI_MODEL_ID} persistence=${env.AI_PERSISTENCE} mode=${env.AI_ADJ_MODE}`,
       )
-      if (env.LLM_PROVIDER === 'llamacpp') {
-        const provider = getProvider(null)
-        void provider
-          .load()
-          .then(() => console.log('[Server] modelo aquecido e pronto.'))
-          .catch((error: unknown) =>
-            console.error(
-              '[Server] warm-up falhou (segue sob demanda):',
-              error instanceof Error ? error.message : error,
-            ),
-          )
-      }
     })
   })
   .catch((error) => {

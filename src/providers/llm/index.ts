@@ -1,7 +1,7 @@
 import { env } from '../../config/env.ts'
+import { ApiError } from '../../exceptions/ApiError.ts'
 import { FakeProvider } from './fakeProvider.ts'
 import { HttpProvider } from './httpProvider.ts'
-import { LlamaCppProvider } from './llamaCppProvider.ts'
 import type { LlmProvider, LlmProviderName, ModelConfig } from './types.ts'
 
 // ============================================================================
@@ -16,8 +16,6 @@ function defaultModel(): ModelConfig {
   return {
     id: env.AI_MODEL_ID,
     provider: env.LLM_PROVIDER,
-    path: env.AI_MODEL_PATH,
-    contextSize: env.AI_MODEL_CONTEXT,
     version: env.AI_MODEL_VERSION || `${env.AI_MODEL_ID}@1`,
   }
 }
@@ -57,8 +55,6 @@ function parseExtraModels(): ModelConfig[] {
     models.push({
       id: item['id'],
       provider,
-      path: typeof item['path'] === 'string' ? item['path'] : env.AI_MODEL_PATH,
-      contextSize: typeof item['contextSize'] === 'number' ? item['contextSize'] : env.AI_MODEL_CONTEXT,
       version: typeof item['version'] === 'string' ? item['version'] : `${item['id']}@1`,
     })
   }
@@ -91,7 +87,9 @@ function createProvider(config: ModelConfig): LlmProvider {
     case 'fake':
       return new FakeProvider(config.id, config.version)
     case 'llamacpp':
-      return new LlamaCppProvider(config)
+      throw ApiError.modelUnavailable(
+        'Provider llamacpp nativo removido. Use LLM_PROVIDER=http com um llama.cpp server/vLLM/Ollama.',
+      )
     case 'http':
       // Sem LLM_HTTP_MODEL explícito, usa o id lógico do catálogo (vLLM/llama.cpp
       // normalmente servem o modelo com o mesmo nome).

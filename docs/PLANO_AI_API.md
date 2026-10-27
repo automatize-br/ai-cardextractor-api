@@ -1,6 +1,6 @@
 # Plano de Implementação — `ai-extractor-api`
 
-**Versão:** 1.0.15
+**Versão:** 1.0.16
 **Criado em:** 2026-10-21
 **Última atualização:** 2026-10-26
 **Status:** Em implementação
@@ -13,6 +13,7 @@
 
 | Data | Versão | Alteração |
 | --- | --- | --- |
+| 2026-10-26 | 1.0.16 | Removidos `src/LLMS`, `node-llama-cpp`, `llamaCppProvider`, scripts de download/smoke e `AI_MODEL_PATH/CONTEXT/THREADS`; modelo local agora via `llama.cpp server`/vLLM/Ollama em `AI_MODELS_JSON` (`openai-compatible`). |
 | 2026-10-26 | 1.0.15 | Início da migração v2: perfis declarativos no `.env`, catálogo de modelos, Ajv 2020-12, `/v1/execute`, `/v1/profiles`, cache de aplicação e contrato legado dourado. Plano: `docs/PLANO_EXTRACAO_UNIVERSAL.md`. |
 | 2026-10-26 | 1.0.14 | Adicionada rota pública `GET /api/v1/helt` (texto `api-scrapping funcionando ok`) para monitoramento da VPS sem gerar pedidos de scraping. Fica fora do rate-limit e não exige `x-internal-key`. |
 | 2026-10-26 | 1.0.13 | Pasta de modelos LLM renomeada de `src/models/` para `src/LLMS/` (e o volume externo de `models/` para `LLMS/`) para eliminar a ambiguidade com `src/modules/models/` e evitar que padrões de `.gitignore` escondam código. Defaults de `AI_MODEL_PATH` e `model:download` atualizados. |

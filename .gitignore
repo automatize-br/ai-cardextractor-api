@@ -3,11 +3,10 @@ dist/
 .env
 .env.*
 !.env.example
-src/LLMS/*.gguf
-src/LLMS/*.bin
-src/LLMS/*.safetensors
-src/LLMS/*.onnx
-/LLMS/
+*.gguf
+*.bin
+*.safetensors
+*.onnx
 *.log
 .DS_Store
 coverage/
