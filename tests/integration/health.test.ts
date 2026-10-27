@@ -18,6 +18,13 @@ after(async () => {
   await new Promise<void>((resolve) => server.close(() => resolve()))
 })
 
+test('GET /api/v1/helt e publico e retorna texto simples', async () => {
+  const response = await fetch(`${baseUrl}/api/v1/helt`)
+  assert.equal(response.status, 200)
+  assert.match(response.headers.get('content-type') ?? '', /^text\/plain/)
+  assert.equal(await response.text(), 'api-scrapping funcionando ok')
+})
+
 test('GET /api/v1/health e publico', async () => {
   const response = await fetch(`${baseUrl}/api/v1/health`)
   assert.equal(response.status, 200)

@@ -1,8 +1,8 @@
 # Plano de Implementação — `ai-extractor-api`
 
-**Versão:** 1.0.13
+**Versão:** 1.0.14
 **Criado em:** 2026-10-21
-**Última atualização:** 2026-10-21
+**Última atualização:** 2026-10-26
 **Status:** Em implementação
 **Plano macro:** `docs/PLANO_INTEGRACAO_IA_EXTRACAO.md`
 
@@ -12,6 +12,7 @@
 
 | Data | Versão | Alteração |
 | --- | --- | --- |
+| 2026-10-26 | 1.0.14 | Adicionada rota pública `GET /api/v1/helt` (texto `api-scrapping funcionando ok`) para monitoramento da VPS sem gerar pedidos de scraping. Fica fora do rate-limit e não exige `x-internal-key`. |
 | 2026-10-26 | 1.0.13 | Pasta de modelos LLM renomeada de `src/models/` para `src/LLMS/` (e o volume externo de `models/` para `LLMS/`) para eliminar a ambiguidade com `src/modules/models/` e evitar que padrões de `.gitignore` escondam código. Defaults de `AI_MODEL_PATH` e `model:download` atualizados. |
 | 2026-10-21 | 1.0.0 | Criação do plano. Define estrutura de pastas espelhando `../../API`, contrato, providers, persistência, scripts e fases. |
 | 2026-10-21 | 1.0.1 | Serviço renomeado de `ai-api` para `ai-extractor-api`; este plano passou a viver em `ai-extractor-api/docs/`. |
@@ -131,6 +132,7 @@ Notas:
 
 | Método | Rota | Auth | Descrição |
 | --- | --- | --- | --- |
+| GET | `/api/v1/helt` | pública | health check simples (texto `api-scrapping funcionando ok`; fora do rate-limit) |
 | GET | `/api/v1/health` | pública | liveness (sem detalhes sensíveis) |
 | GET | `/api/v1/ready` | interna | readiness (modelo carregado?) |
 | POST | `/api/v1/adjudicate` | interna | adjudica um pack |
