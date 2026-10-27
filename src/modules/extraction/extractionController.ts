@@ -6,7 +6,7 @@ import { CONTRACT_VERSION, CORE_VERSION, EXTRACTOR_VERSION } from '../../config/
 import { ApiError } from '../../exceptions/ApiError.ts'
 import { sendSuccess } from '../../helpers/apiResponse.ts'
 import ExtractionService from './extractionService.ts'
-import { beginExtraction, endExtraction } from './metrics.ts'
+import { activeExtractions, beginExtraction, endExtraction } from './metrics.ts'
 
 interface ExtractMeta {
   marketplace: string
@@ -107,6 +107,21 @@ function decodeBody(req: Request): Buffer {
 
 export default class ExtractionController {
   static async extract(req: Request, res: Response): Promise<void> {
+    // Admissão local: o central pode estar com métrica atrasada (heartbeat 30s).
+    // Sem isso, uma instância de 2 vCPU aceita trabalho infinito.
+    if (activeExtractions() >= env.EXTRACTOR_CAPACITY) {
+      res.setHeader('Retry-After', '2')
+      throw new ApiError(429, 'EXTRACTOR_BUSY', 'Extractor at capacity')
+    }
+    beginExtraction()
+    try {
+      await ExtractionController.run(req, res)
+    } finally {
+      endExtraction()
+    }
+  }
+
+  private static async run(req: Request, res: Response): Promise<void> {
     const meta = readMeta(String(req.header('x-extract-meta') ?? ''))
     const htmlBuffer = decodeBody(req)
     if (htmlBuffer.length > env.EXTRACTOR_MAX_HTML_BYTES) {
@@ -124,7 +139,7 @@ export default class ExtractionController {
       env.EXTRACTOR_REQUEST_TIMEOUT_MS,
       Math.max(1, meta.deadlineAt - Date.now()),
     )
-    beginExtraction()
+    let timer: NodeJS.Timeout | null = null
     let result: Awaited<ReturnType<typeof ExtractionService.extract>>
     try {
       result = await Promise.race([
@@ -139,11 +154,11 @@ export default class ExtractionController {
           mode: meta.mode,
         }),
         new Promise<never>((_resolve, reject) => {
-          setTimeout(() => reject(new ApiError(504, 'MODEL_TIMEOUT', 'Extraction timed out')), remaining)
+          timer = setTimeout(() => reject(new ApiError(504, 'MODEL_TIMEOUT', 'Extraction timed out')), remaining)
         }),
       ])
     } finally {
-      endExtraction()
+      if (timer) clearTimeout(timer)
     }
 
     console.log(

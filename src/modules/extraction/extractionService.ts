@@ -198,14 +198,15 @@ export default class ExtractionService {
       .filter((cardId) => !accounted.has(cardId))
       .map((cardId) => ({ cardId, reason: 'not_a_product' }))
 
+    const partial = truncated || rawCards.length > limited.length
     return {
       marketplace: input.marketplace,
       cards,
       rejected,
       scanned: rawCards.length,
-      truncated: truncated || rawCards.length > limited.length,
+      truncated: partial,
       coverageComplete: !truncated && rawCards.length === limited.length,
-      quality: truncated || rawCards.length > limited.length ? 'partial' : 'ok',
+      quality: cards.length === 0 && limited.length > 0 ? 'no_cards' : partial ? 'partial' : 'ok',
       mode: execution?.mode ?? 'heuristic',
       execution,
     }

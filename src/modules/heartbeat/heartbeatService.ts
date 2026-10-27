@@ -91,7 +91,11 @@ export async function heartbeatOnce(status: 'online' | 'draining' = 'online'): P
       }),
       signal: AbortSignal.timeout(5000),
     })
-    return response.ok
+    if (!response.ok) {
+      console.warn(`[heartbeat] rejected status=${response.status} dns=${payload.dns}`)
+      return false
+    }
+    return true
   } catch (error) {
     console.warn('[heartbeat] failed:', error instanceof Error ? error.message : error)
     return false
