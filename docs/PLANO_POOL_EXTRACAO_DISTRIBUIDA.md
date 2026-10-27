@@ -12,6 +12,8 @@
 
 A API central distribui a extração/validação de cards para um **pool de instâncias dedicadas do `ai-extractor-api`**, cada uma em uma VPS de 2 vCPU. A escolha usa CPU (sinal grosseiro), in-flight real, capacidade, saúde, versão/contrato e plataformas suportadas.
 
+**Validação pós-merge `dev` (API/FRONT, 2026-10-27):** o plano foi reconferido contra o código de `dev` mergeado. Ajustes: `SearchGuard.cacheKey` real inclui `userId|marketplace|query|page|limit`; o pipeline real é `dedupe -> shuffle -> categoria -> relevância -> paginação -> adjudicação (legacy)`; `trustedApiCategory`/`trustedCategorySource` e `categoryNodeAccepts` entram no fluxo; o caminho de API oficial não usa `filterRelevant` quando a categoria é confiável; FRONT ainda não trata 503/`Retry-After` (previsto na Fase 5).
+
 **Decisões fechadas nesta revisão:**
 
 1. **Topologia:** N VPS dedicadas de 2 vCPU por extractor; API central em VPS separada. Se tudo estiver no mesmo host, o pool não é usado (CPU da VPS seria igual para todas as instâncias).
@@ -410,18 +412,20 @@ HTML recortado
 - O `scrapeCache` passa a ser escrito de forma **awaited e incondicional** quando existe HTML, mesmo com 0 ofertas. `htmlRef` usa um store content-addressed novo (`sha256(htmlOriginal)`) ou a chave de URL atual **acrescida do hash**; não reutilizar cegamente o `sha1(url)`. Jobs assíncronos usam `htmlRef`; se expirou, `HTML_EXPIRED` + re-coleta.
 - Se o recorte passar de 1MB, **não truncar e não chamar pool/legado**: vazio/parcial com `quality='html_too_large_after_trim'` + métrica; nunca 503.
 - `scrapeCache` tem cap total de bytes (`SCRAPE_CACHE_MAX_BYTES`) e limpeza alinhada ao TTL (10min de leitura, remoção ≤1h); não usar o cleanup de 3h/3×dia sem cap.
-- `SearchGuard` cache key (pré-fetch) = chave atual completa (`browse:a|n:signature`, sem page/limit) + `mode + contractVersion + extractorVersion + coreVersion + trimmerVersion`. Hash **não** entra na chave pré-fetch; ele entra na cache de resultado pós-fetch (`htmlHashOriginal + htmlHashTrimmed + trimmerVersion + coreVersion + extractorVersion + profile + contractVersion`).
+- `SearchGuard` cache key (pré-fetch) = chave atual real (`${userId}|${marketplace}|${query.toLowerCase()}|${page}|${limit}`) + `mode + contractVersion + extractorVersion + coreVersion + trimmerVersion`. Hash **não** entra na chave pré-fetch; ele entra na cache de resultado pós-fetch (`htmlHashOriginal + htmlHashTrimmed + trimmerVersion + coreVersion + extractorVersion + profile + contractVersion`).
 
 ### 7.2 Ordem do pipeline
 
 ```
-scrape -> htmlRef
-  -> pool extract (ou legacy)
-  -> revalidação central
+scrape/API
+  -> legacy: provider dedupe + shuffle + pós-processamento
+  -> pool: capture -> extract -> revalidação -> map
   -> dedupe (externalProductId ?? permalink)
   -> shuffle(seed estável)
-  -> filtro categoria/relevância
+  -> categoria (trustedCategorySource dispensa filtro local)
+  -> relevância textual (q >=3)
   -> paginação
+  -> legacy: adjudicateOffers; pool: já validado
 ```
 
 - **Seam explícito:** `MarketplaceScraper.browseOffers(mode)` recebe o modo e devolve `ScrapeResult`:
@@ -706,3 +710,18 @@ scrape -> htmlRef
 **Correções v2.9.0:** CORS `X-System-Status`; legacy final/passthrough e shadow final×final; `trimmerVersion` na chave pré-fetch; `ScrapeResult` com `legacy|shadow|capture`; `systemStatus` em header/health; aceites 20-22.
 
 **Pendente:** revisão final de confirmação. Não implementar antes da aprovação.
+
+## Estado da implementação (MVP, 2026-10-27)
+
+Implementado e testado:
+
+- **Extractor (`ai-extractor-api`)**: `POST /api/v1/extract` com corpo binário/gzip, `x-extract-meta`, validação de `contractVersion`/`htmlHashTrimmed`/`htmlBytes`, tetos de 1 MB/512 KB/1,2 MB; extração determinística por plataforma (Amazon, Mercado Livre, Shopee, AliExpress, Shein) por JSON-LD + DOM; adjudicação opcional via perfil `cards`; `no_cards` = 200; heartbeat 30 s com CPU (cgroup v1/v2 → `/proc/stat` → loadavg), in-flight, capacidade, versões e plataformas, HMAC/bootId/seq; `draining` no shutdown.
+- **API central**: schemas `tb_aiExtractorInstances`/`tb_aiExtractorReservations`; registry com saturação 75/60, elegibilidade por CPU+contrato+plataforma+stale, score `0.6*CPU + 0.4*ocupação`, reserva atômica (`max(reserved,reportedInflight) < capacity`), release e sweep de 30 s com TTL; allowlist semeada no boot; endpoints internos de heartbeat/health/instances/eligible/sweep com `x-internal-key` (tempo constante) + HMAC.
+- **Cliente do pool**: recorte genérico `trim@1` antes do envio (nunca trunca; >1 MB = vazio autoritativo `html_too_large_after_trim`), gzip, retry em conexão/429/502/503/504 (máx. 2 instâncias), timeout de busca síncrona de 2,5 s (bulk 15 s), espera curta por capacidade quando todas estão saturadas, cache de resultado por hash+versões e revalidação central (preço/moeda/imagem/permalink/ID/evidência → `needsReview`, nunca descarte silencioso).
+- **Modos**: `legacy` default (caminho atual preservado), `pool` (zero extração local, `no_cards` autoritativo) e `shadow` (amostra estável de 5%, pool em paralelo ao legado, sem latência adicional).
+- **Pipeline**: `MarketplaceService` e `autoOfferSearch` usam o mesmo hook; challenge continua por fonte (400 só quando todas bloqueiam); `discarded` do pool é mesclado ao do provider.
+- **Observabilidade/UX**: header `X-System-Status` em `/api/v1` + `/api/v1/health` (`ok|degraded|unavailable`, cache de 5 s); CORS expõe o header; FRONT lê o header, trata 503/429/`Retry-After` sem retry cego (queryClient e mutations), mostra estado degradado e feedback “aguardando capacidade” após 500 ms.
+- **Fila (MVP)**: o job 202 de Ofertas Automáticas é o produtor assíncrono; quando o pool está saturado, a chamada espera até o orçamento bulk (15 s) por capacidade e, esgotado, cai no legado (migração). Não há fila durável nova no MVP — o FRONT síncrono nunca espera além de 2,5 s.
+
+Diferenças conscientes em relação ao desenho completo: o facade ainda é o hook `extractRemote` do provider (não existe `ScrapeResult` formal); a fila bulk é a espera limitada acima (sem coleção de jobs nova); a revalidação de evidência usa o HTML recortado; SSRF bloqueia IPs literais privados/loopback e exige HTTPS em produção (DNS rebinding depende do resolver do host).
+

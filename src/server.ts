@@ -7,6 +7,7 @@ import { connectDB, disconnectDB } from './providers/mongoose.ts'
 import { closePersistence } from './providers/persistence/index.ts'
 import { disposeProviders } from './providers/llm/index.ts'
 import { disposeCatalogProviders } from './providers/llm/catalogProvider.ts'
+import { startHeartbeat, stopHeartbeat } from './modules/heartbeat/heartbeatService.ts'
 
 // Fail-closed: fora de dev/teste, sem chave interna o servico nao sobe.
 if (isProductionEnvironment() && env.AI_INTERNAL_KEY === '') {
@@ -64,6 +65,7 @@ function shutdown(signal: string): void {
   console.log(`[Server] ${signal} recebido — encerrando...`)
   server.close(() => {
     void Promise.allSettled([
+      stopHeartbeat(),
       disposeProviders(),
       disposeCatalogProviders(),
       closePersistence(),
@@ -82,6 +84,7 @@ connectDB()
       console.log(
         `[Server] provider=${env.LLM_PROVIDER} model=${env.AI_MODEL_ID} persistence=${env.AI_PERSISTENCE} mode=${env.AI_ADJ_MODE}`,
       )
+      startHeartbeat()
     })
   })
   .catch((error) => {

@@ -7,6 +7,7 @@ import helmet from 'helmet'
 import { corsOriginCallback } from './config/cors.ts'
 import { env } from './config/env.ts'
 import defaultRouter from './defaultRouter.ts'
+import ExtractionRouter from './modules/extraction/extractionRouter.ts'
 import { errorMiddleware } from './middleware/error.middleware.ts'
 import { requestIdMiddleware } from './middleware/requestId.middleware.ts'
 
@@ -29,6 +30,10 @@ export function createApp(): Express {
   app.get('/api/v1/helt', (_req: Request, res: Response) => {
     res.status(200).type('text/plain').send('api-scrapping funcionando ok')
   })
+
+  // Extração interna: corpo binário e volume alto; fora do limiter público.
+  app.use('/api/v1', ExtractionRouter)
+  app.use('/v1', ExtractionRouter)
 
   const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
