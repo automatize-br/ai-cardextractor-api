@@ -24,6 +24,12 @@ export function createApp(): Express {
   app.use(express.json({ limit: '1mb' }))
   app.use(requestIdMiddleware)
 
+  // Health check publico e simples para monitoramento da VPS.
+  // Fica ANTES do limiter para nao exigir autenticacao nem sofrer 429.
+  app.get('/api/v1/helt', (_req: Request, res: Response) => {
+    res.status(200).type('text/plain').send('api-scrapping funcionando ok')
+  })
+
   const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     limit: 1200,
