@@ -66,6 +66,8 @@ test('Mercado Livre: fração + centavos em spans vira preço correto (199,90)',
   assert.equal(cards.length, 1)
   assert.equal(cards[0]?.priceCents, 19990)
   assert.equal(cards[0]?.imageUrl, 'https://http2.mlstatic.com/D_NQ_NP_2X_123-O.jpg')
+  // Evidência é o texto VERBATIM do DOM (sem vírgula reconstruída).
+  assert.equal(cards[0]?.priceQuote?.replace(/\s+/g, ''), 'R$19990')
 })
 
 test('extrai card Shopee por DOM', () => {

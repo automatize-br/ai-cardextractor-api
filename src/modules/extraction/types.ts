@@ -34,7 +34,7 @@ export interface ExtractionResult {
   scanned: number
   truncated: boolean
   coverageComplete: boolean
-  quality: 'ok' | 'no_cards' | 'html_too_large_after_trim' | 'partial'
+  quality: 'ok' | 'no_cards' | 'all_rejected' | 'html_too_large_after_trim' | 'partial'
   mode: string
   execution: ExecutionResult | null
 }

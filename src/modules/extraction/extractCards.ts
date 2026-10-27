@@ -102,29 +102,44 @@ function imageOf(card: HTMLElement, selectors: readonly string[]): string | null
   return null
 }
 
+interface PriceCandidate {
+  /** Texto usado para parsear (fração+centavos reconstruídos no ML). */
+  text: string
+  /** Texto VERBATIM do DOM (evidência; pode não ter vírgula). */
+  quote: string
+  cents: number
+}
+
 /** Usa o PRIMEIRO seletor que casar (evita somar fração + preço completo). */
-function priceTextsOf(card: HTMLElement, selectors: readonly string[]): string[] {
+function priceCandidatesOf(card: HTMLElement, selectors: readonly string[]): PriceCandidate[] {
   // Mercado Livre separa fração e centavos em spans (o textContent perde a
-  // vírgula: "R$19990"). Reconstrói "199,90" ANTES dos seletores genéricos.
+  // vírgula: "R$19990"). Reconstrói "199,90" para o parse, mas guarda o texto
+  // VERBATIM do elemento como evidência.
   const amountNodes = card.querySelectorAll('.andes-money-amount')
   if (amountNodes.length > 0) {
-    const out: string[] = []
+    const out: PriceCandidate[] = []
     for (const amount of amountNodes) {
       const fraction = textOf(amount.querySelector('.andes-money-amount__fraction'))
-      const cents = textOf(amount.querySelector('.andes-money-amount__cents'))
+      const centsText = textOf(amount.querySelector('.andes-money-amount__cents'))
       const digits = fraction.replace(/\D/g, '')
       if (digits === '') continue
-      out.push(cents.replace(/\D/g, '') === '' ? digits : `${digits},${cents.replace(/\D/g, '').padStart(2, '0')}`)
+      const text = centsText.replace(/\D/g, '') === ''
+        ? digits
+        : `${digits},${centsText.replace(/\D/g, '').padStart(2, '0')}`
+      const cents = parsePriceToCents(text)
+      if (cents === null) continue
+      out.push({ text, quote: textOf(amount), cents })
     }
-    if (out.length > 0) return [...new Set(out)]
+    if (out.length > 0) return out
   }
   for (const selector of selectors) {
-    const out: string[] = []
+    const out: PriceCandidate[] = []
     for (const element of card.querySelectorAll(selector)) {
       const text = textOf(element)
-      if (text !== '' && parsePriceToCents(text) !== null) out.push(text)
+      const cents = parsePriceToCents(text)
+      if (text !== '' && cents !== null) out.push({ text, quote: text, cents })
     }
-    if (out.length > 0) return [...new Set(out)]
+    if (out.length > 0) return out
   }
   return []
 }
@@ -300,17 +315,15 @@ function cardsFromDom(html: string, base: string, marketplace: string, maxScanne
 
       const card = closestCard(anchor)
       const title = titleOf(card, anchor, profile.titleSelectors)
-      const priceTexts = priceTextsOf(card, profile.priceSelectors)
-      if (!title || priceTexts.length === 0) continue
-      const currentPrice = priceTexts
-        .map((text) => ({ text, cents: parsePriceToCents(text) }))
-        .filter((entry): entry is { text: string; cents: number } => entry.cents !== null)
-        .sort((left, right) => left.cents - right.cents)[0]
+      const priceCandidates = priceCandidatesOf(card, profile.priceSelectors)
+      if (!title || priceCandidates.length === 0) continue
+      const currentPrice = [...priceCandidates].sort((left, right) => left.cents - right.cents)[0]
       if (!currentPrice) continue
-      const original = priceTexts
-        .map((text) => parsePriceToCents(text))
-        .filter((cents): cents is number => cents !== null && cents > currentPrice.cents)
-        .sort((left, right) => right - left)[0] ?? null
+      const original =
+        [...priceCandidates]
+          .map((candidate) => candidate.cents)
+          .filter((cents) => cents > currentPrice.cents)
+          .sort((left, right) => right - left)[0] ?? null
       const imageRaw = imageOf(card, profile.imageSelectors)
       const imageUrl = absoluteUrl(imageRaw, base)
       if (!imageUrl) continue
@@ -325,7 +338,7 @@ function cardsFromDom(html: string, base: string, marketplace: string, maxScanne
         originalPriceCents: original,
         imageUrl,
         titleQuote: title,
-        priceQuote: currentPrice.text,
+        priceQuote: currentPrice.quote,
         imageQuote: imageRaw ?? imageUrl,
         source: 'dom',
         cardRootSelector: `a[href="${permalink.replace(/"/g, '\\"')}"]`,

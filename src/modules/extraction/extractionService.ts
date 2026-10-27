@@ -205,8 +205,13 @@ export default class ExtractionService {
       rejected,
       scanned: rawCards.length,
       truncated: partial,
-      coverageComplete: !truncated && rawCards.length === limited.length,
-      quality: cards.length === 0 && limited.length > 0 ? 'no_cards' : partial ? 'partial' : 'ok',
+      coverageComplete: !partial && rawCards.length === limited.length,
+      quality:
+        cards.length === 0 && limited.length > 0
+          ? 'all_rejected'
+          : partial
+            ? 'partial'
+            : 'ok',
       mode: execution?.mode ?? 'heuristic',
       execution,
     }

@@ -114,14 +114,19 @@ export default class ExtractionController {
       throw new ApiError(429, 'EXTRACTOR_BUSY', 'Extractor at capacity')
     }
     beginExtraction()
+    let handedOff = false
     try {
-      await ExtractionController.run(req, res)
+      await ExtractionController.run(req, res, () => {
+        handedOff = true
+      })
     } finally {
-      endExtraction()
+      // Se o trabalho real começou, o slot só é liberado quando ELE terminar
+      // (timeout devolve 504, mas o DOM/LLM não pode continuar invisível).
+      if (!handedOff) endExtraction()
     }
   }
 
-  private static async run(req: Request, res: Response): Promise<void> {
+  private static async run(req: Request, res: Response, onWorkStarted: () => void): Promise<void> {
     const meta = readMeta(String(req.header('x-extract-meta') ?? ''))
     const htmlBuffer = decodeBody(req)
     if (htmlBuffer.length > env.EXTRACTOR_MAX_HTML_BYTES) {
@@ -141,18 +146,24 @@ export default class ExtractionController {
     )
     let timer: NodeJS.Timeout | null = null
     let result: Awaited<ReturnType<typeof ExtractionService.extract>>
+    const work = ExtractionService.extract({
+      marketplace: meta.marketplace,
+      url: meta.url,
+      html: htmlBuffer.toString('utf8'),
+      profile: meta.profile,
+      maxScanned: meta.maxScanned,
+      maxCards: meta.maxCards,
+      maxLlmCards: meta.maxLlmCards,
+      mode: meta.mode,
+    })
+    onWorkStarted()
+    void work.then(
+      () => endExtraction(),
+      () => endExtraction(),
+    )
     try {
       result = await Promise.race([
-        ExtractionService.extract({
-          marketplace: meta.marketplace,
-          url: meta.url,
-          html: htmlBuffer.toString('utf8'),
-          profile: meta.profile,
-          maxScanned: meta.maxScanned,
-          maxCards: meta.maxCards,
-          maxLlmCards: meta.maxLlmCards,
-          mode: meta.mode,
-        }),
+        work,
         new Promise<never>((_resolve, reject) => {
           timer = setTimeout(() => reject(new ApiError(504, 'MODEL_TIMEOUT', 'Extraction timed out')), remaining)
         }),
@@ -178,7 +189,12 @@ export default class ExtractionController {
       modelVersion: result.execution?.modelVersion ?? null,
       mode: result.mode,
       degraded: result.quality === 'partial',
-      reason: result.quality === 'no_cards' ? 'NO_CARDS_EXTRACTED' : null,
+      reason:
+        result.quality === 'no_cards'
+          ? 'NO_CARDS_EXTRACTED'
+          : result.quality === 'all_rejected'
+            ? 'ALL_CARDS_REJECTED'
+            : null,
       htmlHashTrimmed: meta.htmlHashTrimmed,
       cards: result.cards,
       rejected: result.rejected,
