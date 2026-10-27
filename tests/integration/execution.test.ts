@@ -30,6 +30,45 @@ function configureProfile(): void {
   resetFakeCatalogCallsForTests()
 }
 
+function configureCardsExample(): void {
+  const profile = JSON.parse(readFileSync('profiles/cards.json', 'utf8')) as unknown
+  process.env['AI_PROFILES_JSON'] = JSON.stringify([profile])
+  process.env['AI_MODELS_JSON'] = JSON.stringify([
+    {
+      id: 'fast',
+      version: 'fast@1',
+      provider: 'fake',
+      model: 'fake',
+      baseUrl: '',
+      apiKeyEnv: '',
+      structuredOutput: 'json_schema',
+      promptCaching: 'off',
+    },
+  ])
+  resetProfilesForTests()
+  resetModelsForTests()
+  resetCatalogProvidersForTests()
+  resetAppCacheForTests()
+  resetFakeCatalogCallsForTests()
+}
+
+function cardsInput(): Record<string, unknown> {
+  return {
+    marketplace: 'amazon',
+    cards: [
+      {
+        cardId: 'c1',
+        titleCandidates: [{ id: 't1', text: 'Fone Bluetooth JBL Tune 510BT' }],
+        priceCandidates: [
+          { id: 'p1', text: 'R$ 199,90', currency: 'BRL', cents: 19990, kind: 'current' },
+          { id: 'p2', text: 'R$ 249,90', currency: 'BRL', cents: 24990, kind: 'original' },
+        ],
+        imageCandidates: [{ id: 'i1', url: 'https://m.media-amazon.com/images/I/x.jpg' }],
+      },
+    ],
+  }
+}
+
 function postExecute(body: unknown): Promise<Response> {
   return fetch(`${baseUrl}/api/v1/execute`, {
     method: 'POST',
@@ -136,6 +175,63 @@ test('/execute funciona com o perfil de exemplo profiles/cards.json', async () =
     assert.deepEqual(body.data.output, {
       items: [{ item: 1, isProduct: true, title: 'A', price: 'A', original: 'B', image: 'A', confidence: 90 }],
     })
+  } finally {
+    delete process.env['FAKE_EXECUTION_OUTPUT']
+    delete process.env['AI_PROFILES_JSON']
+    delete process.env['AI_MODELS_JSON']
+    resetProfilesForTests()
+    resetModelsForTests()
+    resetCatalogProvidersForTests()
+  }
+})
+
+test('/execute em mode=off usa fallback heurístico para cards', async () => {
+  configureCardsExample()
+  try {
+    const response = await postExecute({
+      profile: 'cards',
+      input: cardsInput(),
+      options: { mode: 'off' },
+    })
+    assert.equal(response.status, 200)
+    const body = (await response.json()) as { data: ExecutionResult }
+    assert.equal(body.data.mode, 'heuristic')
+    assert.equal(body.data.validation.ok, true)
+    assert.equal(body.data.fallbackReason, 'AI_MODE=off')
+    assert.equal(fakeCatalogCallCount(), 0)
+    const item = (body.data.output as { items: Array<Record<string, unknown>> }).items[0]
+    assert.equal(item?.['title'], 'A')
+    assert.equal(item?.['price'], 'A')
+    assert.equal(item?.['original'], '-')
+  } finally {
+    delete process.env['AI_PROFILES_JSON']
+    delete process.env['AI_MODELS_JSON']
+    resetProfilesForTests()
+    resetModelsForTests()
+    resetCatalogProvidersForTests()
+  }
+})
+
+test('/execute em mode=shadow audita o modelo mas devolve heurístico', async () => {
+  configureCardsExample()
+  process.env['FAKE_EXECUTION_OUTPUT'] = JSON.stringify({
+    items: [{ item: 1, isProduct: true, title: 'A', price: 'A', original: 'B', image: 'A', confidence: 90 }],
+  })
+  try {
+    const response = await postExecute({
+      profile: 'cards',
+      input: cardsInput(),
+      options: { mode: 'shadow' },
+    })
+    assert.equal(response.status, 200)
+    const body = (await response.json()) as { data: ExecutionResult }
+    assert.equal(body.data.mode, 'heuristic')
+    assert.equal(body.data.validation.ok, true)
+    assert.equal(body.data.fallbackReason, 'AI_MODE=shadow')
+    assert.equal(fakeCatalogCallCount(), 1)
+    const item = (body.data.output as { items: Array<Record<string, unknown>> }).items[0]
+    assert.equal(item?.['original'], '-')
+    assert.equal(item?.['confidence'], 40)
   } finally {
     delete process.env['FAKE_EXECUTION_OUTPUT']
     delete process.env['AI_PROFILES_JSON']

@@ -879,10 +879,10 @@ Gate mínimo para `assist`: ≥ baseline atual de acurácia, 0 IDs inventados, 0
 | Fase 1 — config layer | **Concluída** | `config/models.ts`, `config/profiles.ts`, Ajv 2020-12, `config:validate/encode/decode`, `.env.example` v2. |
 | Fase 2 — pipeline genérico | **Parcial** | `/v1/execute`, `promptBuilder`, `outputValidator`, provider `fake` e `openai-compatible`; Anthropic/Gemini pendentes. |
 | Fase 3 — cache | **Parcial** | cache de aplicação LRU/TTL, hit/miss, single-flight, chave por modo/versões; métricas de prompt cache e política de abort do líder pendentes. |
-| Fase 4 — extração/score | **Parcial** | grounding `source_quotes`, cobertura exata, referências A-L, regras `required/enum/number_range/unique/candidate_ref` e custom de cards (`current_price_brl`, `original_gt_current`, `unique_current_price`, `title_min_length`, `image_host_allowlist`, `not_noise_title`); `score` pendente. |
+| Fase 4 — extração/score | **Parcial** | grounding `source_quotes`, cobertura exata, referências A-L, regras declarativas/custom de cards e fallback heurístico genérico para seleção (`off`, `shadow`, falha/invalid output); `score` pendente. |
 | Fase 5 — remoção do modelo local | **Concluída** | `src/LLMS`, `node-llama-cpp`, `llamaCppProvider`, scripts de download/smoke e campos `AI_MODEL_PATH/CONTEXT/THREADS` removidos; modelo local via `openai-compatible` HTTP. |
 | Fase 6 — providers adicionais | **Parcial** | Anthropic Messages e Gemini generateContent implementados com structured outputs/cache/usage; Redis ainda pendente. |
 | Fase 7 — rollout | **Parcial** | `npm run eval:profile` com fixture `cards` (caso válido + fallback); shadow/assist/on com packs reais pendentes. |
 
-**Validação local:** `npm run typecheck`, `npm run build`, `npm run config:validate` e `npm test` verdes (106 testes) na data acima. O legado `/v1/adjudicate` continua com contrato dourado.
+**Validação local:** `npm run typecheck`, `npm run build`, `npm run config:validate`, `npm run eval:profile` (2/2) e `npm test` verdes (110 testes) na data acima. O legado `/v1/adjudicate` continua com contrato dourado.
 

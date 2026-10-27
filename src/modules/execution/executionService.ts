@@ -8,6 +8,7 @@ import { validateJson } from '../../config/schema.ts'
 import { ApiError } from '../../exceptions/ApiError.ts'
 import { getCatalogProvider } from '../../providers/llm/catalogProvider.ts'
 import type { ExecutionMode, ExecutionRequest, ExecutionResult } from '../../types/execution.ts'
+import { buildHeuristicOutput } from './heuristicFallback.ts'
 import { buildPrompt } from './promptBuilder.ts'
 import { validateOutput } from './outputValidator.ts'
 
@@ -104,6 +105,36 @@ function fallbackResult(
   }
 }
 
+function heuristicResult(
+  profile: NonNullable<ReturnType<typeof getProfile>>,
+  modelId: string,
+  modelVersion: string,
+  provider: string,
+  input: unknown,
+  started: number,
+  reason: string | null,
+  cachedTokens = 0,
+): ExecutionResult | null {
+  const output = buildHeuristicOutput(profile.profile, input)
+  if (!output) return null
+  const validation = validateOutput(profile.profile, input, JSON.stringify(output))
+  if (!validation.ok) return null
+  return {
+    profileId: profile.profile.id,
+    profileVersion: profile.profile.version,
+    promptHash: profile.promptHash,
+    modelId,
+    modelVersion,
+    provider,
+    mode: 'heuristic',
+    cache: { appHit: false, providerCachedTokens: cachedTokens },
+    validation: { ok: true, errors: [], evidenceCount: validation.evidenceCount },
+    output: validation.value,
+    fallbackReason: reason,
+    latencyMs: Date.now() - started,
+  }
+}
+
 export default class ExecutionService {
   static async execute(
     raw: unknown,
@@ -138,9 +169,18 @@ export default class ExecutionService {
     if (!model) throw ApiError.profileMisconfigured(`Model "${requestedModel}" not found`)
 
     const mode = request.options?.mode ?? getMode()
-    if (mode === 'off') throw ApiError.modelDisabled('AI_MODE=off')
-    if (mode === 'shadow') {
-      throw ApiError.modelDisabled('AI_MODE=shadow não é suportado no /v1/execute sem fallback determinístico')
+    if (mode === 'off') {
+      const heuristic = heuristicResult(
+        registered,
+        model.id,
+        model.version,
+        model.provider,
+        request.input,
+        started,
+        'AI_MODE=off',
+      )
+      if (heuristic) return heuristic
+      throw ApiError.modelDisabled('AI_MODE=off sem fallback determinístico para este perfil')
     }
 
     const prompt = buildPrompt(registered.profile, request.input)
@@ -150,7 +190,8 @@ export default class ExecutionService {
     const batchSize = registered.profile.model.batchSize ?? env.AI_BATCH_SIZE
     const promptCacheKey = `${registered.profile.id}:${registered.promptHash.slice(0, 16)}:${model.modelHash.slice(0, 16)}`
 
-    const cacheEnabled = profileCacheEnabled(registered.profile) && request.options?.cache !== false
+    const cacheEnabled =
+      profileCacheEnabled(registered.profile) && request.options?.cache !== false && mode !== 'shadow'
     const cacheKey = executionCacheKey({
       profile: registered,
       model,
@@ -187,6 +228,19 @@ export default class ExecutionService {
 
         const validation = validateOutput(registered.profile, request.input, completion.text)
         if (!validation.ok) {
+          if (registered.profile.validation.fallback === 'heuristic') {
+            const heuristic = heuristicResult(
+              registered,
+              model.id,
+              model.version,
+              model.provider,
+              request.input,
+              started,
+              'INVALID_MODEL_OUTPUT',
+              completion.cachedTokens,
+            )
+            if (heuristic) return heuristic
+          }
           if (!env.AI_FAIL_OPEN) {
             throw new ApiError(503, 'AI_PROVIDER_ERROR', 'Model output failed validation', validation.errors)
           }
@@ -221,15 +275,51 @@ export default class ExecutionService {
           latencyMs: Date.now() - started,
         }
       } catch (error) {
-        if (!env.AI_FAIL_OPEN) throw error
         const reason =
           error instanceof ApiError
             ? error.code
             : error instanceof Error
               ? error.message
               : 'provider_error'
+        if (registered.profile.validation.fallback === 'heuristic') {
+          const heuristic = heuristicResult(
+            registered,
+            model.id,
+            model.version,
+            model.provider,
+            request.input,
+            started,
+            reason,
+          )
+          if (heuristic) return heuristic
+        }
+        if (!env.AI_FAIL_OPEN) throw error
         return fallbackResult(registered, model.id, model.version, model.provider, started, reason, [reason])
       }
+    }
+
+    if (mode === 'shadow') {
+      const audit = await runModel()
+      const heuristic = heuristicResult(
+        registered,
+        model.id,
+        model.version,
+        model.provider,
+        request.input,
+        started,
+        'AI_MODE=shadow',
+        audit.cache.providerCachedTokens,
+      )
+      if (heuristic) return heuristic
+      return fallbackResult(
+        registered,
+        model.id,
+        model.version,
+        model.provider,
+        started,
+        'SHADOW_NO_HEURISTIC',
+        audit.validation.errors,
+      )
     }
 
     let result: ExecutionResult
@@ -250,9 +340,8 @@ export default class ExecutionService {
       result = await runModel()
     }
 
-    if (cacheEnabled && result.validation.ok && result.mode !== 'fallback') {
-      appCache.set(cacheKey, result)
-    }
+    const cacheable = result.validation.ok && (result.mode === 'llm' || result.mode === 'fake')
+    if (cacheEnabled && cacheable) appCache.set(cacheKey, result)
     return result
   }
 }

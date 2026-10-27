@@ -1,6 +1,6 @@
 # Plano de Implementação — `ai-extractor-api`
 
-**Versão:** 1.0.17
+**Versão:** 1.0.18
 **Criado em:** 2026-10-21
 **Última atualização:** 2026-10-26
 **Status:** Em implementação
@@ -13,6 +13,7 @@
 
 | Data | Versão | Alteração |
 | --- | --- | --- |
+| 2026-10-27 | 1.0.18 | `/v1/execute` ganhou fallback heurístico genérico para perfis de seleção (`off`, `shadow`, falha/saída inválida), mantendo `fallbackReason` e validação; eval de perfil cobre caso válido e fallback. |
 | 2026-10-26 | 1.0.17 | Adicionados providers Anthropic/Gemini, catálogo v2 em `/models` e harness `eval:profile`; modelo local nativo removido. |
 | 2026-10-26 | 1.0.16 | Removidos `src/LLMS`, `node-llama-cpp`, `llamaCppProvider`, scripts de download/smoke e `AI_MODEL_PATH/CONTEXT/THREADS`; modelo local agora via `llama.cpp server`/vLLM/Ollama em `AI_MODELS_JSON` (`openai-compatible`). |
 | 2026-10-26 | 1.0.15 | Início da migração v2: perfis declarativos no `.env`, catálogo de modelos, Ajv 2020-12, `/v1/execute`, `/v1/profiles`, cache de aplicação e contrato legado dourado. Plano: `docs/PLANO_EXTRACAO_UNIVERSAL.md`. |
