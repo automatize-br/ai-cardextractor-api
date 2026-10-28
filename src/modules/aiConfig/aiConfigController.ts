@@ -4,6 +4,7 @@ import { sendSuccess } from '../../helpers/apiResponse.ts'
 import { ApiError } from '../../exceptions/ApiError.ts'
 import { applyAiConfig } from './apply.ts'
 import { getRuntimeAiConfig, parseRuntimeAiConfig } from './runtimeConfig.ts'
+import { humanizeProviderError } from '../../helpers/providerErrorMessages.ts'
 
 // ============================================================================
 // Recebe a config de IA do central (admin). `test` faz um ping no /models do
@@ -55,14 +56,14 @@ async function pingModel(config: NonNullable<ReturnType<typeof getRuntimeAiConfi
       signal: AbortSignal.timeout(Math.min(15000, config.timeoutMs)),
     })
     if (response.ok) return { ready: true, message: `chat completion ok (${Date.now() - started}ms)` }
-    const detail = (await response.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 240)
-    const hint =
-      response.status === 401 || response.status === 403
-        ? ' — credencial inválida para este container (OpenCode Go ≠ Console; confira a chave/plano)'
-        : ''
+    const detail = (await response.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 400)
     return {
       ready: false,
-      message: `HTTP ${response.status} em /chat/completions${detail ? `: ${detail}` : ''}${hint} (${Date.now() - started}ms)`,
+      message: humanizeProviderError(response.status, detail, {
+        provider: config.provider,
+        model: config.model,
+        baseUrl: base,
+      }),
     }
   } catch (error) {
     return {

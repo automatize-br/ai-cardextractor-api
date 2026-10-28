@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { ApiError } from '../../exceptions/ApiError.ts'
+import { humanizeProviderError } from '../../helpers/providerErrorMessages.ts'
 import { modelApiKey } from '../../config/models.ts'
 import type { RegisteredModel } from '../../types/model.ts'
 import type { CompletionMetadata } from '../../types/llm.ts'
@@ -174,8 +175,17 @@ export class OpenAICompatibleProvider implements CatalogLlmProvider {
       })
 
       if (!response.ok) {
-        const detail = (await response.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 240)
-        throw ApiError.modelUnavailable(`HTTP provider responded ${response.status}${detail ? `: ${detail}` : ''}`)
+        const detail = (await response.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 400)
+        throw new ApiError(
+          502,
+          'AI_PROVIDER_ERROR',
+          humanizeProviderError(response.status, detail, {
+            provider: this.model.provider,
+            model: this.model.model,
+            baseUrl: this.model.baseUrl,
+          }),
+          { providerStatus: response.status, providerDetail: detail },
+        )
       }
 
       const payload = (await response.json()) as ChatCompletionResponse
