@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express'
+import { randomUUID } from 'node:crypto'
 import { sendSuccess } from '../../helpers/apiResponse.ts'
 import { ApiError } from '../../exceptions/ApiError.ts'
 import { applyAiConfig } from './apply.ts'
@@ -17,9 +18,16 @@ async function pingModel(config: NonNullable<ReturnType<typeof getRuntimeAiConfi
   if (config.baseUrl === '' || config.model === '') return { ready: false, message: 'baseUrl/model vazios' }
   const started = Date.now()
   const base = config.baseUrl.replace(/\/+$/, '')
+  let isOpenCode = false
+  try {
+    isOpenCode = /(^|\.)opencode\.ai$/i.test(new URL(base).hostname)
+  } catch {
+    isOpenCode = false
+  }
   const headers: Record<string, string> = {
     accept: 'application/json',
     ...(config.apiKey ? { authorization: `Bearer ${config.apiKey}` } : {}),
+    ...(isOpenCode ? { 'x-opencode-session': randomUUID(), 'user-agent': 'vupia-ai-extractor/1.0' } : {}),
   }
   // Alguns gateways OpenAI-compatible (ex.: OpenCode) não expõem /models.
   // Nesse caso valida com um chat completion mínimo.
@@ -47,7 +55,11 @@ async function pingModel(config: NonNullable<ReturnType<typeof getRuntimeAiConfi
       signal: AbortSignal.timeout(Math.min(15000, config.timeoutMs)),
     })
     if (response.ok) return { ready: true, message: `chat completion ok (${Date.now() - started}ms)` }
-    return { ready: false, message: `HTTP ${response.status} em /chat/completions (${Date.now() - started}ms)` }
+    const detail = (await response.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 240)
+    return {
+      ready: false,
+      message: `HTTP ${response.status} em /chat/completions${detail ? `: ${detail}` : ''} (${Date.now() - started}ms)`,
+    }
   } catch (error) {
     return {
       ready: false,
