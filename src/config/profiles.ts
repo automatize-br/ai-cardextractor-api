@@ -1,4 +1,6 @@
 import { z } from 'zod'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { env } from './env.ts'
 import { getModel, listModels } from './models.ts'
 import { assertJsonSchema } from './schema.ts'
@@ -124,7 +126,13 @@ function readProfileJson(): unknown[] {
       throw new Error('AI_PROFILES_B64 is not valid base64')
     }
   } else {
-    return []
+    // Sem env: usa o perfil `cards` versionado no repositório (fonte única do
+    // contrato de cards). A config de provider/modelo vem do painel admin.
+    try {
+      return [JSON.parse(readFileSync(resolve(process.cwd(), 'profiles/cards.json'), 'utf8')) as unknown]
+    } catch {
+      return []
+    }
   }
 
   let parsed: unknown

@@ -9,6 +9,7 @@ import type {
   RegisteredModel,
   StructuredOutputMode,
 } from '../types/model.ts'
+import { RUNTIME_MODEL_ID, getRuntimeAiConfig, runtimeApiKey, runtimeModel } from '../modules/aiConfig/runtimeConfig.ts'
 
 // ============================================================================
 // Catálogo de modelos v2. Lido de AI_MODELS_JSON; se ausente, sintetiza um
@@ -215,7 +216,7 @@ export function listModels(): RegisteredModel[] {
   if (cached) return cached
   const configured = parseCatalog()
   const models = configured.length > 0 ? configured : legacyDefaultModel()
-  cached = models.map((model) => ({
+  const mapped = models.map((model): RegisteredModel => ({
     ...model,
     modelHash: computeHash({
       id: model.id,
@@ -229,6 +230,11 @@ export function listModels(): RegisteredModel[] {
       maxOutput: model.maxOutput,
     }),
   }))
+  // Só entra no catálogo quando não há NENHUM modelo configurado (placeholder
+  // para os perfis carregarem). Com catálogo de env, `getModel('fast')` ainda
+  // resolve a config dinâmica sob demanda.
+  if (mapped.length === 0) mapped.unshift(runtimeModel())
+  cached = mapped
   return cached
 }
 
@@ -238,7 +244,14 @@ export function getModel(id: string | null): RegisteredModel | null {
     const defaultId = env.AI_DEFAULT_MODEL || models[0]?.id || ''
     return models.find((model) => model.id === defaultId) ?? models[0] ?? null
   }
-  return models.find((model) => model.id === id) ?? null
+  const configured = models.find((model) => model.id === id)
+  if (id === RUNTIME_MODEL_ID) {
+    const runtime = getRuntimeAiConfig()
+    // Config do painel (mesmo desabilitada) vence; sem config, respeita o
+    // catálogo de env quando ele define `fast`.
+    return runtime || !configured ? runtimeModel() : configured
+  }
+  return configured ?? null
 }
 
 export function getDefaultModel(): RegisteredModel | null {
@@ -250,6 +263,7 @@ export function resetModelsForTests(): void {
 }
 
 export function modelApiKey(model: CatalogModel): string {
+  if (model.id === RUNTIME_MODEL_ID) return runtimeApiKey()
   if (model.apiKeyEnv === '') return ''
   return (process.env[model.apiKeyEnv] ?? '').trim()
 }

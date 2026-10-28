@@ -1,5 +1,6 @@
 import { getProfile } from '../../config/profiles.ts'
 import ExecutionService from '../execution/executionService.ts'
+import { getRuntimeAiConfig, runtimeAiEnabled } from '../aiConfig/runtimeConfig.ts'
 import { extractRawCards, type RawCard } from './extractCards.ts'
 import type { ExtractedCard, ExtractionResult } from './types.ts'
 
@@ -161,15 +162,17 @@ export default class ExtractionService {
 
     const limited = rawCards.slice(0, input.maxCards)
     const llmCards = Math.min(30, Math.max(0, input.maxLlmCards))
+    const runtime = runtimeAiEnabled() ? getRuntimeAiConfig() : null
+    const effectiveMode = runtime?.mode ?? (input.mode as 'off' | 'shadow' | 'assist' | 'on')
     let execution: Awaited<ReturnType<typeof ExecutionService.execute>> | null = null
     let applied: AppliedExecution = { cards: [], rejectedIds: new Set() }
     try {
       const profile = getProfile(input.profile)
-      if (profile && llmCards > 0) {
+      if (profile && llmCards > 0 && effectiveMode !== 'off') {
         execution = await ExecutionService.execute({
           profile: input.profile,
           input: buildPack(input.marketplace, limited.slice(0, llmCards)),
-          options: { mode: input.mode as 'off' | 'shadow' | 'assist' | 'on' },
+          options: { mode: effectiveMode },
         })
         applied = applyExecution(
           limited.slice(0, llmCards),

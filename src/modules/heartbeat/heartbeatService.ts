@@ -2,6 +2,7 @@ import { createHmac, randomUUID } from 'node:crypto'
 import { env } from '../../config/env.ts'
 import { CONTRACT_VERSION, CORE_VERSION, SUPPORTED_PLATFORMS } from '../../config/version.ts'
 import { sampleCpuUsage } from '../../helpers/cpuUsage.ts'
+import { applyAiConfig } from '../aiConfig/apply.ts'
 import { activeExtractions } from '../extraction/metrics.ts'
 
 // ============================================================================
@@ -95,6 +96,17 @@ export async function heartbeatOnce(status: 'online' | 'draining' = 'online'): P
       console.warn(`[heartbeat] rejected status=${response.status} dns=${payload.dns}`)
       return false
     }
+    // O ACK carrega a config de IA do painel (aplicação sem reiniciar).
+    const body = (await response.json().catch(() => null)) as
+      | { data?: { aiConfig?: unknown } }
+      | null
+    const aiConfig = body?.data?.aiConfig
+    if (aiConfig) {
+      const applied = applyAiConfig(aiConfig)
+      if (applied.applied) {
+        console.log(`[ai-config] aplicada versão ${applied.version ?? '?'}`)
+      }
+    }
     return true
   } catch (error) {
     console.warn('[heartbeat] failed:', error instanceof Error ? error.message : error)
@@ -102,8 +114,32 @@ export async function heartbeatOnce(status: 'online' | 'draining' = 'online'): P
   }
 }
 
-export function startHeartbeat(): void {
-  if (timer || env.EXTRACTOR_CONTROL_URL === '' || env.EXTRACTOR_DNS === '' || env.EXTRACTOR_KEY === '') return
+/** Busca a config de IA no central no boot (best-effort; heartbeat renova). */
+export async function bootstrapAiConfig(): Promise<boolean> {
+  if (env.EXTRACTOR_CONTROL_URL === '' || env.AI_INTERNAL_KEY === '') return false
+  try {
+    const response = await fetch(
+      `${env.EXTRACTOR_CONTROL_URL.replace(/\/+$/, '')}/api/v1/internal/ai-extractor/config`,
+      {
+        headers: { accept: 'application/json', 'x-internal-key': env.AI_INTERNAL_KEY },
+        signal: AbortSignal.timeout(3000),
+      },
+    )
+    if (!response.ok) return false
+    const body = (await response.json().catch(() => null)) as
+      | { data?: { config?: unknown; aiConfig?: unknown } }
+      | null
+    const config = body?.data?.config ?? body?.data?.aiConfig ?? body?.data
+    if (!config) return false
+    const applied = applyAiConfig(config)
+    if (applied.applied) console.log(`[ai-config] bootstrap versão ${applied.version ?? '?'}`)
+    return applied.applied
+  } catch {
+    return false
+  }
+}
+
+export function startHeartbeat(): void {  if (timer || env.EXTRACTOR_CONTROL_URL === '' || env.EXTRACTOR_DNS === '' || env.EXTRACTOR_KEY === '') return
   stopped = false
   void heartbeatOnce('online')
   timer = setInterval(() => {

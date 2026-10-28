@@ -8,6 +8,7 @@ import { corsOriginCallback } from './config/cors.ts'
 import { env } from './config/env.ts'
 import defaultRouter from './defaultRouter.ts'
 import ExtractionRouter from './modules/extraction/extractionRouter.ts'
+import AiConfigRouter from './modules/aiConfig/aiConfigRouter.ts'
 import { errorMiddleware } from './middleware/error.middleware.ts'
 import { requestIdMiddleware } from './middleware/requestId.middleware.ts'
 
@@ -34,6 +35,8 @@ export function createApp(): Express {
   // Extração interna: corpo binário e volume alto; fora do limiter público.
   app.use('/api/v1', ExtractionRouter)
   app.use('/v1', ExtractionRouter)
+  app.use('/api/v1/internal/ai-config', AiConfigRouter)
+  app.use('/v1/internal/ai-config', AiConfigRouter)
 
   const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,

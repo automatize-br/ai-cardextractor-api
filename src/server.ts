@@ -7,7 +7,7 @@ import { connectDB, disconnectDB } from './providers/mongoose.ts'
 import { closePersistence } from './providers/persistence/index.ts'
 import { disposeProviders } from './providers/llm/index.ts'
 import { disposeCatalogProviders } from './providers/llm/catalogProvider.ts'
-import { startHeartbeat, stopHeartbeat } from './modules/heartbeat/heartbeatService.ts'
+import { bootstrapAiConfig, startHeartbeat, stopHeartbeat } from './modules/heartbeat/heartbeatService.ts'
 
 // Fail-closed: fora de dev/teste, sem chave interna o servico nao sobe.
 if (isProductionEnvironment() && env.AI_INTERNAL_KEY === '') {
@@ -79,11 +79,12 @@ process.on('SIGTERM', () => shutdown('SIGTERM'))
 
 connectDB()
   .then(() => {
-    server.listen(env.PORT, env.HOST, () => {
+    server.listen(env.PORT, env.HOST, async () => {
       console.log(`[Server] ai-extractor-api on http://${env.HOST}:${env.PORT} (pid ${process.pid})`)
       console.log(
         `[Server] provider=${env.LLM_PROVIDER} model=${env.AI_MODEL_ID} persistence=${env.AI_PERSISTENCE} mode=${env.AI_ADJ_MODE}`,
       )
+      await bootstrapAiConfig()
       startHeartbeat()
     })
   })
