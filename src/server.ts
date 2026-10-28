@@ -8,7 +8,7 @@ import { closePersistence } from './providers/persistence/index.ts'
 import { disposeProviders } from './providers/llm/index.ts'
 import { disposeCatalogProviders } from './providers/llm/catalogProvider.ts'
 import { bootstrapAiConfig, startHeartbeat, stopHeartbeat } from './modules/heartbeat/heartbeatService.ts'
-import { startAiConfigPoll, pollAiConfigOnce, stopAiConfigPoll } from './modules/aiConfig/mongoConfigSource.ts'
+import { startAiConfigPoll, stopAiConfigPoll } from './modules/aiConfig/mongoConfigSource.ts'
 import { startExtractorState, stopExtractorState } from './modules/extractorState/extractorStateService.ts'
 
 // Fail-closed: fora de dev/teste, sem chave interna o servico nao sobe.
@@ -119,7 +119,6 @@ connectDB()
       )
       if (aiConfigSource() === 'mongo') {
         startAiConfigPoll()
-        await pollAiConfigOnce(true)
       } else {
         await bootstrapAiConfig()
       }
