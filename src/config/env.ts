@@ -150,6 +150,21 @@ export const env = {
   EXTRACTOR_REQUEST_TIMEOUT_MS: readInt('EXTRACTOR_REQUEST_TIMEOUT_MS', 6000),
   EXTRACTOR_PLATFORMS: readCsv('EXTRACTOR_PLATFORMS'),
 
+  // --- Coleta de páginas no próprio extractor (contrato v2) ---
+  // Proxy e unblocker ficam em CADA extractor: fetch/render/anti-bot é o
+  // trabalho pesado que justifica o pool.
+  SCRAPE_PROXY_URL: readString('SCRAPE_PROXY_URL'),
+  SCRAPE_UNBLOCKER_AUTH: readString('SCRAPE_UNBLOCKER_AUTH'),
+  SCRAPE_UNBLOCKER_URL: readString('SCRAPE_UNBLOCKER_URL'),
+  SCRAPE_UNBLOCKER_GEO: readString('SCRAPE_UNBLOCKER_GEO'),
+  SCRAPE_FETCH_TIMEOUT_MS: readInt('SCRAPE_FETCH_TIMEOUT_MS', 20_000),
+  SCRAPE_UNBLOCKER_TIMEOUT_MS: readInt('SCRAPE_UNBLOCKER_TIMEOUT_MS', 90_000),
+  EXTRACTOR_SCRAPE_MAX_BYTES: readInt('EXTRACTOR_SCRAPE_MAX_BYTES', 6_000_000),
+  // Orçamento do contrato v2 (busca + extração + revalidação no extractor).
+  EXTRACTOR_SCRAPE_TIMEOUT_MS: readInt('EXTRACTOR_SCRAPE_TIMEOUT_MS', 120_000),
+  // Só para dev/teste local (http://127.0.0.1). Em produção permanece false.
+  EXTRACTOR_ALLOW_PRIVATE_SCRAPE: readBoolean('EXTRACTOR_ALLOW_PRIVATE_SCRAPE', false),
+
   // Versoes carimbadas em cada resposta/registro. Mudar o prompt ou o formato
   // do pack exige incrementar a env correspondente (nunca hardcode).
   PACK_VERSION: readString('PACK_VERSION', '1'),

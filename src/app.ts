@@ -8,6 +8,7 @@ import { corsOriginCallback } from './config/cors.ts'
 import { env } from './config/env.ts'
 import defaultRouter from './defaultRouter.ts'
 import ExtractionRouter from './modules/extraction/extractionRouter.ts'
+import RemoteExtractionRouter from './modules/remoteExtraction/remoteExtractionRouter.ts'
 import AiConfigRouter from './modules/aiConfig/aiConfigRouter.ts'
 import { errorMiddleware } from './middleware/error.middleware.ts'
 import { requestIdMiddleware } from './middleware/requestId.middleware.ts'
@@ -35,6 +36,9 @@ export function createApp(): Express {
   // Extração interna: corpo binário e volume alto; fora do limiter público.
   app.use('/api/v1', ExtractionRouter)
   app.use('/v1', ExtractionRouter)
+  // Contrato v2: o extractor busca a página, extrai e revalida.
+  app.use('/api/v1', RemoteExtractionRouter)
+  app.use('/v1', RemoteExtractionRouter)
   app.use('/api/v1/internal/ai-config', AiConfigRouter)
   app.use('/v1/internal/ai-config', AiConfigRouter)
 
