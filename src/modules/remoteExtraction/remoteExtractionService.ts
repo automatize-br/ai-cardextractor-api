@@ -14,6 +14,7 @@ import { emptyDiscarded, revalidateCards, type DiscardedCounters, type RemoteOff
 export type RemoteQuality = 'ok' | 'partial' | 'no_cards' | 'blocked' | 'unavailable'
 
 export interface RemoteExtractionInput {
+  requestId?: string
   marketplace: string
   urls: string[]
   query?: string
@@ -78,6 +79,16 @@ function qualityOf(offers: number, sources: SourceResult[]): RemoteQuality {
   return 'no_cards'
 }
 
+function shortUrl(raw: string): string {
+  try {
+    const url = new URL(raw)
+    const text = `${url.hostname}${url.pathname}${url.search}`
+    return text.length > 240 ? `${text.slice(0, 237)}...` : text
+  } catch {
+    return raw.slice(0, 240)
+  }
+}
+
 const REASONS: Record<RemoteQuality, string | null> = {
   ok: null,
   partial: 'PARTIAL_SOURCES',
@@ -103,10 +114,17 @@ export default class RemoteExtractionService {
     const collected: RemoteOffer[] = []
     let rejected = 0
     let scanned = 0
+    const requestId = input.requestId || '-'
+
+    console.log(
+      `[extract-offers] start requestId=${requestId} marketplace=${input.marketplace} ` +
+        `query="${input.query ?? ''}" urls=${input.urls.length}`,
+    )
 
     for (const url of input.urls) {
       if (Date.now() >= input.deadlineAt) break
       const sourceStartedAt = Date.now()
+      console.log(`[extract-offers] fetch requestId=${requestId} marketplace=${input.marketplace} url=${shortUrl(url)}`)
       try {
         const page = await fetchPage(url, input.marketplace)
         const trimmed = trimHtmlForExtraction(page.html, env.EXTRACTOR_MAX_HTML_BYTES)
@@ -121,6 +139,11 @@ export default class RemoteExtractionService {
             rejected: 0,
             error: 'html_too_large_after_trim',
           })
+          console.log(
+            `[extract-offers] source requestId=${requestId} marketplace=${input.marketplace} ` +
+              `source=${page.source} url=${shortUrl(url)} bytes=${page.bytes} ` +
+              `trimmed=${trimmed.bytes} error=html_too_large_after_trim`,
+          )
           continue
         }
         const result = await extract({
@@ -138,7 +161,7 @@ export default class RemoteExtractionService {
         collected.push(...validated.offers)
         rejected += validated.rejected
         scanned += result.scanned
-        sources.push({
+        const sourceResult: SourceResult = {
           url,
           source: page.source,
           bytes: page.bytes,
@@ -147,13 +170,20 @@ export default class RemoteExtractionService {
           offers: validated.offers.length,
           rejected: validated.rejected,
           error: null,
-        })
+        }
+        sources.push(sourceResult)
+        console.log(
+          `[extract-offers] source requestId=${requestId} marketplace=${input.marketplace} ` +
+            `source=${page.source} url=${shortUrl(url)} bytes=${page.bytes} trimmed=${trimmed.bytes} ` +
+            `cards=${sourceResult.cards} offers=${sourceResult.offers} rejected=${sourceResult.rejected} ` +
+            `quality=${result.quality} ms=${sourceResult.ms}`,
+        )
       } catch (error) {
         const kind = error instanceof ScrapeFetchError ? error.kind : 'unavailable'
         if (!(error instanceof ScrapeFetchError) && !(error instanceof ApiError)) {
           console.warn('[extract-offers] fonte falhou:', error instanceof Error ? error.message : error)
         }
-        sources.push({
+        const sourceResult: SourceResult = {
           url,
           source: null,
           bytes: 0,
@@ -162,12 +192,23 @@ export default class RemoteExtractionService {
           offers: 0,
           rejected: 0,
           error: kind,
-        })
+        }
+        sources.push(sourceResult)
+        console.log(
+          `[extract-offers] source_error requestId=${requestId} marketplace=${input.marketplace} ` +
+            `url=${shortUrl(url)} error=${kind} ms=${sourceResult.ms}`,
+        )
       }
     }
 
     const offers = dedupe(collected)
     const quality = qualityOf(offers.length, sources)
+    const durationMs = Date.now() - startedAt
+    console.log(
+      `[extract-offers] done requestId=${requestId} marketplace=${input.marketplace} query="${input.query ?? ''}" ` +
+        `sources=${sources.length} offers=${offers.length} rejected=${rejected} scanned=${scanned} ` +
+        `quality=${quality} ms=${durationMs}`,
+    )
     return {
       marketplace: input.marketplace,
       offers,
@@ -177,7 +218,7 @@ export default class RemoteExtractionService {
       reason: REASONS[quality],
       scanned,
       sources,
-      durationMs: Date.now() - startedAt,
+      durationMs,
     }
   }
 }
