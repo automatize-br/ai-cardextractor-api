@@ -2,9 +2,9 @@ import express from 'express'
 import { getAdjMode } from '../../config/env.ts'
 import { getDefaultModel } from '../../config/models.ts'
 import { getDefaultProfile } from '../../config/profiles.ts'
+import { getCatalogProvider } from '../../providers/llm/catalogProvider.ts'
 import { sendSuccess } from '../../helpers/apiResponse.ts'
 import { internalAuthMiddleware } from '../../middleware/internalAuth.middleware.ts'
-import { listModelConfigs, getProvider } from '../../providers/llm/index.ts'
 
 const router = express.Router()
 
@@ -23,13 +23,14 @@ router.get('/health', (_req, res) => {
 
 // Readiness interna: informa se o modelo default esta carregado.
 router.get('/ready', internalAuthMiddleware, async (_req, res) => {
-  const configs = listModelConfigs()
-  const defaultModel = configs[0] ?? null
-  const ready = defaultModel ? await getProvider(defaultModel.id).isReady().catch(() => false) : false
+  // Usa o catálogo v2 (inclui o modelo dinâmico `fast` do painel admin), não
+  // o registry legado — que pode estar vazio quando LLM_PROVIDER é llamacpp.
+  const model = getDefaultModel()
+  const ready = model ? await getCatalogProvider(model).isReady().catch(() => false) : false
   sendSuccess(res, {
     ready,
-    modelId: defaultModel?.id ?? null,
-    provider: defaultModel?.provider ?? null,
+    modelId: model?.id ?? null,
+    provider: model?.provider ?? null,
   })
 })
 
