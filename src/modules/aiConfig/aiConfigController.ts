@@ -16,23 +16,42 @@ async function pingModel(config: NonNullable<ReturnType<typeof getRuntimeAiConfi
   if (config.provider === 'fake') return { ready: true, message: 'provider fake' }
   if (config.baseUrl === '' || config.model === '') return { ready: false, message: 'baseUrl/model vazios' }
   const started = Date.now()
+  const base = config.baseUrl.replace(/\/+$/, '')
+  const headers: Record<string, string> = {
+    accept: 'application/json',
+    ...(config.apiKey ? { authorization: `Bearer ${config.apiKey}` } : {}),
+  }
+  // Alguns gateways OpenAI-compatible (ex.: OpenCode) não expõem /models.
+  // Nesse caso valida com um chat completion mínimo.
   try {
-    const response = await fetch(`${config.baseUrl.replace(/\/+$/, '')}/models`, {
+    const response = await fetch(`${base}/models`, {
       method: 'GET',
-      headers: {
-        accept: 'application/json',
-        ...(config.apiKey ? { authorization: `Bearer ${config.apiKey}` } : {}),
-      },
+      headers,
       signal: AbortSignal.timeout(Math.min(10000, config.timeoutMs)),
     })
-    if (!response.ok) {
-      return { ready: false, message: `HTTP ${response.status} em /models (${Date.now() - started}ms)` }
-    }
-    return { ready: true, message: `modelo acessível (${Date.now() - started}ms)` }
+    if (response.ok) return { ready: true, message: `modelo acessível (${Date.now() - started}ms)` }
+  } catch {
+    // cai para o chat de teste
+  }
+  try {
+    const response = await fetch(`${base}/chat/completions`, {
+      method: 'POST',
+      headers: { ...headers, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        model: config.model,
+        messages: [{ role: 'user', content: 'ping' }],
+        max_tokens: 1,
+        temperature: 0,
+        stream: false,
+      }),
+      signal: AbortSignal.timeout(Math.min(15000, config.timeoutMs)),
+    })
+    if (response.ok) return { ready: true, message: `chat completion ok (${Date.now() - started}ms)` }
+    return { ready: false, message: `HTTP ${response.status} em /chat/completions (${Date.now() - started}ms)` }
   } catch (error) {
     return {
       ready: false,
-      message: `falha ao acessar /models: ${error instanceof Error ? error.message : 'unknown'}`,
+      message: `falha ao acessar o provider: ${error instanceof Error ? error.message : 'unknown'}`,
     }
   }
 }
