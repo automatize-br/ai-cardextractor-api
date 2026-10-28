@@ -65,6 +65,18 @@ test('trim remove style/script comum e preserva JSON-LD', () => {
   assert.ok(result.html.includes('application/ld+json'))
 })
 
+test('trim preserva os scripts de dados do AliExpress', () => {
+  const html = `<html><head>
+    <script>window._dida_config_={items:[1]}</script>
+    <script>window.__AER_DATA__={items:[2]}</script>
+    <script>var lixo=1</script>
+  </head><body>ok</body></html>`
+  const result = trimHtmlForExtraction(html, 10_000)
+  assert.ok(result.html.includes('_dida_config_'))
+  assert.ok(result.html.includes('__AER_DATA__'))
+  assert.ok(!result.html.includes('lixo'))
+})
+
 test('revalida card bom e devolve contrato RawOffer', () => {
   const result = revalidateCards([card()], HTML, 'mercadolivre')
   assert.equal(result.rejected, 0)

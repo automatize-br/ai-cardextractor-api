@@ -14,7 +14,17 @@ export interface TrimResult {
   tooLarge: boolean
 }
 
-const SCRIPT_STATE_MARKERS = ['__INITIAL_STATE__', '__NEXT_DATA__', '__PRELOADED_STATE__', 'window.__']
+const SCRIPT_STATE_MARKERS = [
+  '__INITIAL_STATE__',
+  '__NEXT_DATA__',
+  '__PRELOADED_STATE__',
+  'window.__',
+  // AliExpress: catálogo em scripts de estado (não são JSON-LD).
+  '_dida_config_',
+  '__AER_DATA__',
+  '_init_data_',
+  'window._dida',
+]
 
 function keepScript(attributes: string, body: string): boolean {
   const attrs = attributes.toLowerCase()

@@ -305,6 +305,124 @@ function cardsFromJsonLd(html: string, base: string, marketplace: string): RawCa
   return cards
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null
+}
+
+/** Lê `window._dida_config_._init_data_ = { data: { ... } }` sem executar JS. */
+function aliExpressInitData(html: string): Record<string, unknown> | null {
+  const marker = /window\._dida_config_\._init_data_\s*=\s*\{\s*data:\s*\{/.exec(html)
+  if (!marker) return null
+  const start = marker.index + marker[0].length - 1
+  let depth = 0
+  let end = -1
+  let inString = false
+  let escaped = false
+  for (let index = start; index < html.length; index += 1) {
+    const char = html[index]
+    if (inString) {
+      if (escaped) escaped = false
+      else if (char === '\\') escaped = true
+      else if (char === '"') inString = false
+      continue
+    }
+    if (char === '"') {
+      inString = true
+      continue
+    }
+    if (char === '{') depth += 1
+    else if (char === '}') {
+      depth -= 1
+      if (depth === 0) {
+        end = index + 1
+        break
+      }
+    }
+  }
+  if (end < 0) return null
+  try {
+    return JSON.parse(html.slice(start, end)) as Record<string, unknown>
+  } catch {
+    return null
+  }
+}
+
+function findItemList(node: unknown, depth = 0): Array<Record<string, unknown>> {
+  if (depth > 6) return []
+  const record = asRecord(node)
+  if (!record) return []
+  const list = asRecord(record['itemList'])
+  const content = list?.['content']
+  if (Array.isArray(content)) {
+    return content.map(asRecord).filter((item): item is Record<string, unknown> => item !== null)
+  }
+  for (const value of Object.values(record)) {
+    if (typeof value === 'object' && value !== null) {
+      const found = findItemList(value, depth + 1)
+      if (found.length > 0) return found
+    }
+  }
+  return []
+}
+
+/**
+ * AliExpress renderiza o catálogo em `window._dida_config_._init_data_`
+ * (itemList) em vez de cards no DOM. Este parser cobre a listagem atual.
+ */
+function cardsFromAliExpressState(html: string, base: string, maxScanned: number): RawCard[] {
+  const initData = aliExpressInitData(html)
+  if (!initData) return []
+  const cards: RawCard[] = []
+  for (const item of findItemList(initData)) {
+    if (cards.length >= maxScanned) break
+    const titleRecord = asRecord(item['title'])
+    const title = (typeof item['title'] === 'string' ? item['title'] : String(titleRecord?.['displayTitle'] ?? '')).trim()
+    if (title === '') continue
+    const productId = String(item['productId'] ?? item['redirectedId'] ?? '').trim()
+    const permalink = absoluteUrl(productId === '' ? null : `/item/${productId}.html`, base)
+    const image = asRecord(item['image'])?.['imgUrl']
+    const imageRaw = typeof image === 'string' ? (image.startsWith('//') ? `https:${image}` : image) : ''
+    const imageUrl = absoluteUrl(imageRaw, base)
+    const prices = asRecord(item['prices'])
+    const sale = asRecord(prices?.['salePrice'])
+    const currencyCode = typeof sale?.['currencyCode'] === 'string' ? sale['currencyCode'].toUpperCase() : ''
+    const centsRaw = Number(sale?.['cent'])
+    const minPrice = Number(sale?.['minPrice'])
+    const priceCents = Number.isInteger(centsRaw) && centsRaw > 0
+      ? centsRaw
+      : Number.isFinite(minPrice) && minPrice > 0
+        ? Math.round(minPrice * 100)
+        : null
+    if (!permalink || !imageUrl || !priceCents || !currencyCode) continue
+    const originalRecord = asRecord(prices?.['originalPrice'])
+    const originalCentsRaw = Number(originalRecord?.['cent'])
+    const originalMin = Number(originalRecord?.['minPrice'])
+    const originalCents = Number.isInteger(originalCentsRaw) && originalCentsRaw > priceCents
+      ? originalCentsRaw
+      : Number.isFinite(originalMin) && Math.round(originalMin * 100) > priceCents
+        ? Math.round(originalMin * 100)
+        : null
+    const formatted = typeof sale?.['formattedPrice'] === 'string' ? sale['formattedPrice'] : String(sale?.['minPrice'] ?? '')
+    cards.push({
+      externalProductId: productId === '' ? null : productId,
+      permalink,
+      title: title.slice(0, 300),
+      priceCents,
+      currency: currencyCode,
+      originalPriceCents: originalCents,
+      imageUrl,
+      titleQuote: title,
+      priceQuote: formatted,
+      imageQuote: imageRaw,
+      source: 'jsonld',
+      cardRootSelector: 'script',
+    })
+  }
+  return cards
+}
+
 function cardsFromDom(html: string, base: string, marketplace: string, maxScanned: number): RawCard[] {
   const root = parse(html)
   const profile = DOM_PROFILES[marketplace] ?? GENERIC_PROFILE
@@ -361,15 +479,22 @@ export function extractRawCards(
   baseUrl: string,
   maxScanned: number,
 ): { cards: RawCard[]; truncated: boolean } {
+  const aliState = marketplace === 'aliexpress' ? cardsFromAliExpressState(html, baseUrl, maxScanned) : []
   const jsonLd = cardsFromJsonLd(html, baseUrl, marketplace)
   // JSON-LD costuma descrever a LISTAGEM inteira; quando traz poucos itens
   // (ex.: só o produto principal), o DOM complementa a cobertura.
-  const dom = jsonLd.length >= 3 ? [] : cardsFromDom(html, baseUrl, marketplace, maxScanned)
-  const all = [...jsonLd, ...dom]
+  const dom = aliState.length + jsonLd.length >= 3
+    ? []
+    : cardsFromDom(html, baseUrl, marketplace, maxScanned)
+  const all = [...aliState, ...jsonLd, ...dom]
   const seen = new Set<string>()
   const unique: RawCard[] = []
   for (const card of all) {
-    const key = card.externalProductId ?? card.permalink
+    // AliExpress pode repetir o mesmo produto com moedas diferentes; manter as
+    // duas versões deixa a revalidação descartar a que não é BRL.
+    const key = marketplace === 'aliexpress'
+      ? `${card.externalProductId ?? card.permalink}|${card.currency}`
+      : card.externalProductId ?? card.permalink
     if (seen.has(key)) continue
     seen.add(key)
     unique.push(card)

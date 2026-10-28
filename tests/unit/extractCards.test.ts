@@ -108,3 +108,21 @@ test('JSON-LD tem prioridade sobre DOM e o DOM complementa a cobertura', () => {
   assert.equal(cards[0]?.priceCents, 9990)
   assert.equal(cards[1]?.title, 'Fone Bluetooth JBL Tune 510BT')
 })
+
+test('AliExpress: lê itemList de window._dida_config_._init_data_', () => {
+  const html = `<!doctype html><html><body><script>
+window._dida_config_._init_data_= { data: {"itemList":{"content":[
+{"productId":"1005001234567890","title":{"displayTitle":"Fone Bluetooth TWS Pro"},"image":{"imgUrl":"//ae-pic-a1.aliexpress-media.com/kf/a.jpg"},"prices":{"salePrice":{"currencyCode":"BRL","cent":2990,"formattedPrice":"R$ 29,90"},"originalPrice":{"cent":5990}}},
+{"productId":"1005009876543210","title":{"displayTitle":"Caixa de Som Bluetooth Portátil"},"image":{"imgUrl":"//ae-pic-a1.aliexpress-media.com/kf/b.jpg"},"prices":{"salePrice":{"currencyCode":"BRL","cent":15990,"formattedPrice":"R$ 159,90"}}}
+]}} }
+</script></body></html>`
+  const { cards } = extractRawCards(html, 'aliexpress', 'https://www.aliexpress.com/w/wholesale-fone-bluetooth.html', 200)
+  assert.equal(cards.length, 2)
+  assert.equal(cards[0]?.externalProductId, '1005001234567890')
+  assert.equal(cards[0]?.title, 'Fone Bluetooth TWS Pro')
+  assert.equal(cards[0]?.priceCents, 2990)
+  assert.equal(cards[0]?.originalPriceCents, 5990)
+  assert.equal(cards[0]?.currency, 'BRL')
+  assert.equal(cards[0]?.permalink, 'https://www.aliexpress.com/item/1005001234567890.html')
+  assert.equal(cards[0]?.imageUrl, 'https://ae-pic-a1.aliexpress-media.com/kf/a.jpg')
+})

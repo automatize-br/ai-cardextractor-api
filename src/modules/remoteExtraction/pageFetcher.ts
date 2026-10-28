@@ -1,4 +1,6 @@
 import { isIP } from 'node:net'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import path from 'node:path'
 import { ProxyAgent, fetch as undiciFetch } from 'undici'
 import { env, isProductionEnvironment } from '../../config/env.ts'
 import { isMarketplaceHost } from '../../config/marketplaces.ts'
@@ -104,7 +106,7 @@ export function assertScrapeUrl(raw: string, marketplace: string): URL {
   return url
 }
 
-function unblockerConfig(): { url: string; authorization: string } | null {
+function unblockerConfig(): { url: string; authorization: string; geo: string } | null {
   const auth = env.SCRAPE_UNBLOCKER_AUTH.trim()
   if (auth === '') return null
   let authorization = auth
@@ -114,6 +116,7 @@ function unblockerConfig(): { url: string; authorization: string } | null {
   return {
     url: env.SCRAPE_UNBLOCKER_URL.trim() || 'https://data.decodo.com/v1/scrape',
     authorization,
+    geo: env.SCRAPE_UNBLOCKER_GEO.trim().toLowerCase(),
   }
 }
 
@@ -129,7 +132,7 @@ function parseUnblockerBody(text: string): string | null {
   }
 }
 
-async function fetchWithUnblocker(target: string): Promise<string | null> {
+async function fetchWithUnblocker(target: string, marketplace: string): Promise<string | null> {
   const config = unblockerConfig()
   if (!config) return null
   try {
@@ -140,8 +143,14 @@ async function fetchWithUnblocker(target: string): Promise<string | null> {
         'content-type': 'application/json',
         accept: 'application/json',
       },
-      // `geo` não é enviado: o Decodo infere pelo domínio.
-      body: JSON.stringify({ url: target, headless: 'html', device_type: 'desktop' }),
+      body: JSON.stringify({
+        url: target,
+        headless: 'html',
+        device_type: 'desktop',
+        // AliExpress é global: sem geo o preço vem em USD/CAD/MXN. Só enviamos
+        // geo para ele; os domínios .com.br recusariam o parâmetro.
+        ...(config.geo !== '' && marketplace === 'aliexpress' ? { geo: config.geo } : {}),
+      }),
       signal: AbortSignal.timeout(env.SCRAPE_UNBLOCKER_TIMEOUT_MS),
     })
     const text = await response.text()
@@ -201,15 +210,33 @@ export async function fetchPageHtml(rawUrl: string, marketplace: string): Promis
   const startedAt = Date.now()
   const target = url.toString()
 
-  const unblockerHtml = await fetchWithUnblocker(target)
+  const unblockerHtml = await fetchWithUnblocker(target, marketplace)
   if (unblockerHtml !== null) {
-    return finish(unblockerHtml, 'unblocker', startedAt)
+    const page = finish(unblockerHtml, 'unblocker', startedAt)
+    dumpHtml(marketplace, page)
+    return page
   }
   const directHtml = await fetchDirect(target)
   if (directHtml !== null) {
-    return finish(directHtml, getProxyDispatcher() ? 'proxy' : 'http', startedAt)
+    const page = finish(directHtml, getProxyDispatcher() ? 'proxy' : 'http', startedAt)
+    dumpHtml(marketplace, page)
+    return page
   }
   throw new ScrapeFetchError('Nenhuma fonte conseguiu buscar a página', 'unavailable')
+}
+
+/** Diagnóstico opt-in: salva o HTML bruto para inspeção de layout. */
+function dumpHtml(marketplace: string, page: FetchedPage): void {
+  if (!env.SCRAPE_DEBUG_DUMP) return
+  try {
+    const dir = path.resolve('tmp/scrape')
+    mkdirSync(dir, { recursive: true })
+    const file = path.join(dir, `${Date.now()}-${marketplace}-${page.source}.html`)
+    writeFileSync(file, page.html)
+    console.log(`[scrape] dump: ${file}`)
+  } catch (error) {
+    console.warn('[scrape] dump falhou:', error instanceof Error ? error.message : error)
+  }
 }
 
 function finish(html: string, source: FetchSource, startedAt: number): FetchedPage {
