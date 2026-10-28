@@ -1,9 +1,9 @@
 # Plano — Pool de Extratores de Ofertas com Balanceamento por CPU
 
-**Versão:** 2.9.0 (revisada após rodada 10)
-**Data:** 2026-10-27
+**Versão:** 3.0.0 (estado publicado pelo próprio extractor)
+**Data:** 2026-10-28
 **Branch:** `feat/extractor-pool-scheduler`
-**Status:** **APROVADO** (revisão final dos dois revisores)
+**Status:** **APROVADO** (2.9.0) + adendo 3.0.0
 **Projetos:** `ai-extractor-api` (este), `../API`, `../FRONT`
 
 ---
@@ -21,7 +21,7 @@ A API central distribui a extração/validação de cards para um **pool de inst
 3. **HTML:** a API envia HTML **recortado genericamente** com lista fechada: remove `<style>`, `<svg>`, comentários e data-URIs; preserva `<script type="application/ld+json">`, `<script type="application/json">` e scripts cujo conteúdo case o allowlist de estado (`__INITIAL_STATE__`, `__NEXT_DATA__`, `__PRELOADED_STATE__`, `window.__`); remove os demais scripts. O extractor faz o recorte específico por plataforma. Limite: 1 MB descompactado / 512 KB gzip. Se o recorte passar de 1 MB, a página vira vazio/parcial com métrica (nunca 503); **nunca truncar no meio do HTML**.
 4. **Grounding:** o extractor devolve `selection` + `candidates` (≤12 por campo) + `evidence` com `{source, pointer|selector, occurrence}`; o central revalida o candidato escolhido e o valor com o **mesmo módulo de normalização/parsing**. Preço é reparseado para cents; imagem é comparada por URL normalizada; título por igualdade/substring. O mínimo de 3 tokens vale só para texto livre.
 5. **Fila:** o fluxo síncrono do FRONT espera no máximo 2,5s e cai no fallback legado (durante migração) ou 200 vazio/503 com UI (após remoção). Fila longa é interna/assíncrona; não há endpoint público 202 no MVP. A fila guarda descritor, nunca HTML.
-6. **Heartbeat:** 30s operacional, staleness 90s; 180s configurável, mas declarado insuficiente para o threshold de 75%.
+6. **Estado do pool (v3.0.0):** cada extractor grava o próprio estado direto em `tb_aiExtractorInstances` a cada 180s; a API central apenas lê. O heartbeat HTTP de 30s/staleness 90s permanece só como modo legado (`EXTRACTOR_STATE_MODE=central`). No modo direto o staleness default é 300s.
 7. **Cache:** memória apenas, sem Redis. Cache de resultado no central por `htmlHashOriginal + htmlHashTrimmed + trimmerVersion + coreVersion + extractorVersion + profile + contractVersion`; `SearchGuard` **não** usa hash na chave pré-fetch.
 8. **Persistência:** `AI_EXTRACTOR_MODE=pool` exige Mongo **no central**; reservas são **sempre persistidas no Mongo**, mesmo com `REPLICA_COUNT=1`; o extractor pode usar memory. `pool` vazio não derruba o boot: entra em `degraded`.
 9. **Boot:** allowlist é semeada com `status='unknown'`; falha de boot só por config inválida (JSON, chave, persistência), nunca por liveness.
@@ -243,9 +243,22 @@ Regras:
 - Admissão: `max(reserved, reportedInflight) < capacity`.
 - Alerta `reserved_divergence > 0`.
 
-### 3.3 Heartbeat
+### 3.3 Estado da instância (direto no Mongo — v3.0.0)
 
-`POST /internal/ai-extractors/heartbeat` com:
+Cada extractor publica o **próprio** estado em `tb_aiExtractorInstances`; a API central **só lê**
+(consultas de elegibilidade/score). Não há escrita de estado por heartbeat na API.
+
+- `EXTRACTOR_STATE_MODE=mongo` (produção): upsert a cada `EXTRACTOR_STATE_INTERVAL_MS`
+  (default `180000` = 3 min) com `dns`, `version`, `contractVersion`, `coreVersion`,
+  `trimmerVersion`, `platforms`, `capacity`, `use`, `useRaw`, `cpuMetricSupported`,
+  `reportedInflight`, `queueDepth`, `status`, `saturated`, `bootId`, `lastSeq`, `lastSeenAt`.
+- `reserved` **não** é escrito pelo extractor: continua sendo propriedade da API (reserva de slot).
+- Boot publica `online`; shutdown publica `draining` (a API deixa de escolher a instância).
+- Histerese local 75/60 (`EXTRACTOR_SATURATION_THRESHOLD`/`EXTRACTOR_RESUME_THRESHOLD`).
+- Falha de Mongo é logada e não derruba a extração; o próximo tick tenta de novo.
+- `EXTRACTOR_STATE_MODE=central` mantém o heartbeat HTTP abaixo como caminho legado.
+
+Legado (`central`): `POST /internal/ai-extractors/heartbeat` com:
 
 - `x-extractor-dns`, `x-extractor-boot-id`, `x-extractor-seq`, `x-extractor-ts`, `x-extractor-signature`.
 - Corpo: `dns`, `version`, `contractVersion`, `coreVersion`, `platforms`, `profileHashes`, `capacity`, `use`, `useRaw`, `cpuMetricSupported`, `reportedInflight`, `queueDepth`, `eventLoopLagMs`, `p95LatencyMs`, `status`, `measuredAt`.
@@ -254,7 +267,7 @@ Regras:
 - `lastSeq`/`bootId` atualizados na **mesma** `findOneAndUpdate`.
 - Janela de `ts` (ex.: ±5 min) para clock skew.
 - Allowlist `AI_EXTRACTOR_POOL_JSON` com `keyEnv`.
-- Heartbeat 30s; staleness 90s; 180s configurável (grosseiro).
+- Heartbeat 30s; staleness 90s (legado).
 - Boot envia `online`; shutdown envia `draining`.
 - `draining/offline` manual não é ressuscitado.
 
@@ -272,7 +285,7 @@ Regras:
 
 ### 4.1 Elegibilidade
 
-`status=online`, `lastSeenAt >= now - AI_EXTRACTOR_STALENESS_MS` (central; default 90s, validado ≥3× heartbeat), `cpuMetricSupported`, `saturated=false`, `use<75`, `max(reserved,reportedInflight)<capacity`, `contractVersion`, `coreVersion` compatível (major), `platforms`, `profileHashes`, breaker.
+`status=online`, `lastSeenAt >= now - AI_EXTRACTOR_POOL_STALENESS_MS` (default **300s** no modo Mongo — cobre o publish de 180s + folga; 90s no heartbeat legado), `cpuMetricSupported`, `saturated=false`, `use<75`, `max(reserved,reportedInflight)<capacity`, `contractVersion`, `coreVersion` compatível (major), `platforms`, `profileHashes`, breaker.
 
 ### 4.2 Score
 
@@ -710,6 +723,8 @@ scrape/API
 **Correções v2.9.0:** CORS `X-System-Status`; legacy final/passthrough e shadow final×final; `trimmerVersion` na chave pré-fetch; `ScrapeResult` com `legacy|shadow|capture`; `systemStatus` em header/health; aceites 20-22.
 
 **Pendente:** revisão final de confirmação. Não implementar antes da aprovação.
+
+**Correções v3.0.0 (adendo):** estado do pool publicado **pelo próprio extractor** em `tb_aiExtractorInstances` (upsert a cada 180s com CPU/in-flight/capacidade/plataformas/versões/`lastSeenAt`); a API central apenas consulta e mantém a posse de `reserved`/reservas; `draining` no shutdown; config de IA lida direto de `tb_aiextractorconfigs` (`AI_CONFIG_SOURCE=mongo`) com `CREDENTIALS_ENC_KEY` compartilhada e polling de 30s; staleness default 300s; heartbeat HTTP vira modo legado (`EXTRACTOR_STATE_MODE=central`); `LLM_PROVIDER=fake` segue proibido em produção apenas quando `AI_CONFIG_SOURCE=env`.
 
 ## Estado da implementação (MVP, 2026-10-27)
 

@@ -57,6 +57,25 @@ function readLlmProvider(): 'fake' | 'llamacpp' | 'http' {
   return value
 }
 
+export type ExtractorStateMode = 'central' | 'mongo'
+export type AiConfigSource = 'mongo' | 'central' | 'env'
+
+function readStateMode(): ExtractorStateMode {
+  const value = readString('EXTRACTOR_STATE_MODE', 'central').toLowerCase()
+  if (value !== 'central' && value !== 'mongo') {
+    throw new Error(`EXTRACTOR_STATE_MODE must be "central" or "mongo" — received "${value}"`)
+  }
+  return value
+}
+
+function readAiConfigSource(): AiConfigSource | 'auto' {
+  const value = readString('AI_CONFIG_SOURCE', 'auto').toLowerCase()
+  if (value !== 'auto' && value !== 'mongo' && value !== 'central' && value !== 'env') {
+    throw new Error(`AI_CONFIG_SOURCE must be "auto", "mongo", "central" or "env" — received "${value}"`)
+  }
+  return value
+}
+
 export const env = {
   PORT: readInt('PORT', 5555),
   // Bind local por padrao: o servico nao deve ficar exposto sem proxy/allowlist.
@@ -112,6 +131,12 @@ export const env = {
   EXTRACTOR_DNS: readString('EXTRACTOR_DNS'),
   EXTRACTOR_KEY: readString('EXTRACTOR_KEY'),
   EXTRACTOR_CONTROL_URL: readString('EXTRACTOR_CONTROL_URL'),
+  // `central` = heartbeat HTTP (legado). `mongo` = cada extractor grava o
+  // próprio estado direto em tb_aiExtractorInstances; a API só lê.
+  EXTRACTOR_STATE_MODE: readStateMode(),
+  EXTRACTOR_STATE_INTERVAL_MS: readInt('EXTRACTOR_STATE_INTERVAL_MS', 180_000),
+  EXTRACTOR_SATURATION_THRESHOLD: readFloat('EXTRACTOR_SATURATION_THRESHOLD', 75),
+  EXTRACTOR_RESUME_THRESHOLD: readFloat('EXTRACTOR_RESUME_THRESHOLD', 60),
   EXTRACTOR_VERSION: readString('EXTRACTOR_VERSION', 'dev'),
   EXTRACTOR_CARD_TRIMMER_VERSION: readString('EXTRACTOR_CARD_TRIMMER_VERSION', 'trim@1'),
   EXTRACTOR_CAPACITY: readInt('EXTRACTOR_CAPACITY', 2),
@@ -135,6 +160,13 @@ export const env = {
   MONGO_PASSWORD: readString('MONGO_PASSWORD'),
   MONGO_URL: readString('MONGO_URL'),
   MONGO_ENVIRONMENT: readString('MONGO_ENVIRONMENT'),
+  // Mesma chave da API central: decifra `encryptedApiKey` de tb_aiextractorconfigs.
+  CREDENTIALS_ENC_KEY: readString('CREDENTIALS_ENC_KEY'),
+
+  // De onde a config de IA é lida: `mongo` (direto do painel), `central`
+  // (heartbeat/bootstrap) ou `env`. `auto` = mongo quando EXTRACTOR_STATE_MODE=mongo.
+  AI_CONFIG_SOURCE: readAiConfigSource(),
+  AI_CONFIG_POLL_MS: readInt('AI_CONFIG_POLL_MS', 30_000),
 
   LLM_PROVIDER: readLlmProvider(),
   LLM_TIMEOUT_MS: readInt('LLM_TIMEOUT_MS', 12000),
@@ -183,6 +215,20 @@ export function isDevelopmentEnvironment(): boolean {
 
 export function isProductionEnvironment(): boolean {
   return !isDevelopmentEnvironment()
+}
+
+/**
+ * Fonte efetiva da config de IA. `auto` segue o modo de estado: no pool
+ * direto (mongo) a config também vem do Mongo, sem passar pela API central.
+ */
+export function aiConfigSource(): AiConfigSource {
+  if (env.AI_CONFIG_SOURCE !== 'auto') return env.AI_CONFIG_SOURCE
+  return env.EXTRACTOR_STATE_MODE === 'mongo' ? 'mongo' : 'central'
+}
+
+/** O serviço precisa de conexão Mongo (persistência, estado ou config). */
+export function mongoRequired(): boolean {
+  return env.AI_PERSISTENCE === 'mongo' || env.EXTRACTOR_STATE_MODE === 'mongo' || aiConfigSource() === 'mongo'
 }
 
 export type AdjMode = 'off' | 'shadow' | 'assist' | 'on'

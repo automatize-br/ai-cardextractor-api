@@ -49,6 +49,8 @@ function heartbeatUrl(): string {
 }
 
 export async function heartbeatOnce(status: 'online' | 'draining' = 'online'): Promise<boolean> {
+  // Estado direto no Mongo: a API não deve receber requisição de heartbeat.
+  if (env.EXTRACTOR_STATE_MODE === 'mongo') return false
   if (env.EXTRACTOR_DNS === '' || env.EXTRACTOR_KEY === '' || env.EXTRACTOR_CONTROL_URL === '') return false
   const cpu = sampleCpuUsage()
   const ts = Date.now()
@@ -116,6 +118,7 @@ export async function heartbeatOnce(status: 'online' | 'draining' = 'online'): P
 
 /** Busca a config de IA no central no boot (best-effort; heartbeat renova). */
 export async function bootstrapAiConfig(): Promise<boolean> {
+  if (env.EXTRACTOR_STATE_MODE === 'mongo') return false
   if (env.EXTRACTOR_CONTROL_URL === '' || env.AI_INTERNAL_KEY === '') return false
   try {
     const response = await fetch(
@@ -139,7 +142,7 @@ export async function bootstrapAiConfig(): Promise<boolean> {
   }
 }
 
-export function startHeartbeat(): void {  if (timer || env.EXTRACTOR_CONTROL_URL === '' || env.EXTRACTOR_DNS === '' || env.EXTRACTOR_KEY === '') return
+export function startHeartbeat(): void {  if (timer || env.EXTRACTOR_STATE_MODE === 'mongo' || env.EXTRACTOR_CONTROL_URL === '' || env.EXTRACTOR_DNS === '' || env.EXTRACTOR_KEY === '') return
   stopped = false
   void heartbeatOnce('online')
   timer = setInterval(() => {
