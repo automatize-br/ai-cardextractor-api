@@ -94,6 +94,27 @@ export interface CpuUsage {
   cpuCount: number
 }
 
+interface CpuTimesSample {
+  idle: number
+  total: number
+}
+
+let previousTimes: CpuTimesSample | null = null
+
+function readCpuTimes(): CpuTimesSample | null {
+  const list = cpus()
+  if (list.length === 0) return null
+  let idle = 0
+  let total = 0
+  for (const cpu of list) {
+    const times = cpu.times
+    idle += times.idle
+    total += times.user + times.nice + times.sys + times.irq + times.idle
+  }
+  if (total <= 0) return null
+  return { idle, total }
+}
+
 export function sampleCpuUsage(): CpuUsage {
   const cgroup = readCgroupUsage()
   if (cgroup) {
@@ -130,6 +151,19 @@ export function sampleCpuUsage(): CpuUsage {
 
   const load = loadavg()[0] ?? 0
   if (load <= 0) {
+    // Windows (e containers sem /proc): usa os tempos acumulados de cpu().
+    const times = readCpuTimes()
+    if (times) {
+      if (!previousTimes) {
+        previousTimes = times
+        return { use: 0, useRaw: 0, supported: true, cpuCount }
+      }
+      const idleDelta = Math.max(0, times.idle - previousTimes.idle)
+      const totalDelta = Math.max(1, times.total - previousTimes.total)
+      previousTimes = times
+      const raw = Math.min(100, Math.max(0, (1 - idleDelta / totalDelta) * 100))
+      return { use: smooth(raw), useRaw: Math.round(raw * 10) / 10, supported: true, cpuCount }
+    }
     return { use: 0, useRaw: 0, supported: false, cpuCount }
   }
   const raw = Math.min(100, Math.max(0, (load / cpuCount) * 100))
@@ -139,5 +173,6 @@ export function sampleCpuUsage(): CpuUsage {
 export function resetCpuUsageForTests(): void {
   previousCgroup = null
   previousProc = null
+  previousTimes = null
   previousUse = 0
 }

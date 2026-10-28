@@ -77,6 +77,27 @@ test('extrai card Shopee por DOM', () => {
   assert.equal(cards[0]?.priceCents, 17990)
 })
 
+test('dois cards ML: segundo sem símbolo R$ não herda título/preço do primeiro', () => {
+  const html = `<!doctype html><html><body>
+<li class="ui-search-layout__item">
+  <a href="https://produto.mercadolivre.com.br/MLB-1111111111-fone"><h2>Fone Bluetooth JBL</h2></a>
+  <img src="https://http2.mlstatic.com/1-I.jpg" />
+  <span class="andes-money-amount"><span class="andes-money-amount__fraction">199</span><span class="andes-money-amount__cents">90</span></span>
+</li>
+<li class="ui-search-layout__item">
+  <a href="https://produto.mercadolivre.com.br/MLB-2222222222-caixa"><h2>Caixa de Som JBL Go 3</h2></a>
+  <img data-src="https://http2.mlstatic.com/2-I.jpg" />
+  <span class="andes-money-amount"><span class="andes-money-amount__fraction">249</span><span class="andes-money-amount__cents">50</span></span>
+</li>
+</body></html>`
+  const { cards } = extractRawCards(html, 'mercadolivre', 'https://lista.mercadolivre.com.br/ofertas', 200)
+  assert.equal(cards.length, 2)
+  assert.equal(cards[0]?.title, 'Fone Bluetooth JBL')
+  assert.equal(cards[0]?.priceCents, 19990)
+  assert.equal(cards[1]?.title, 'Caixa de Som JBL Go 3')
+  assert.equal(cards[1]?.priceCents, 24950)
+})
+
 test('JSON-LD tem prioridade sobre DOM e o DOM complementa a cobertura', () => {
   const html = `<!doctype html><html><head>
   <script type="application/ld+json">{"@type":"Product","name":"Produto JSON-LD Completo","url":"https://loja.com/p/1","image":"https://loja.com/img.jpg","offers":{"price":"99.90","priceCurrency":"BRL"}}</script>

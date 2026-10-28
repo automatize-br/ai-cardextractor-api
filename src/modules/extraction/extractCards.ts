@@ -160,8 +160,15 @@ function closestCard(anchor: HTMLElement): HTMLElement {
   for (let depth = 0; depth < 6 && current; depth += 1) {
     const hasImage = current.querySelector('img') !== null
     const text = textOf(current)
-    const hasPrice = /R\$|US\$|\$/.test(text)
-    if (hasImage && hasPrice && text.length > 20) return current
+    const hasPriceText = /R\$|US\$|\$/.test(text) || /\d{1,3}(?:[.,]\d{3})*[.,]\d{2}/.test(text)
+    // Alguns cards não têm o símbolo R$ no texto (fração/centavos em spans):
+    // aceita também um nó de preço conhecido do perfil.
+    const hasPriceNode =
+      current.querySelector('.andes-money-amount') !== null ||
+      current.querySelector('[data-sqe="price"]') !== null ||
+      current.querySelector('[class*="price"]') !== null ||
+      current.querySelector('[class*="preco"]') !== null
+    if (hasImage && (hasPriceText || hasPriceNode) && text.length > 20) return current
     current = current.parentNode as HTMLElement | null
   }
   return (anchor.parentNode as HTMLElement | null) ?? anchor
