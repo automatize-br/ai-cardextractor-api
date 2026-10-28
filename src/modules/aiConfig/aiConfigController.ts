@@ -56,9 +56,13 @@ async function pingModel(config: NonNullable<ReturnType<typeof getRuntimeAiConfi
     })
     if (response.ok) return { ready: true, message: `chat completion ok (${Date.now() - started}ms)` }
     const detail = (await response.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 240)
+    const hint =
+      response.status === 401 || response.status === 403
+        ? ' — credencial inválida para este container (OpenCode Go ≠ Console; confira a chave/plano)'
+        : ''
     return {
       ready: false,
-      message: `HTTP ${response.status} em /chat/completions${detail ? `: ${detail}` : ''} (${Date.now() - started}ms)`,
+      message: `HTTP ${response.status} em /chat/completions${detail ? `: ${detail}` : ''}${hint} (${Date.now() - started}ms)`,
     }
   } catch (error) {
     return {
