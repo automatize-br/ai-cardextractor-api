@@ -1419,8 +1419,9 @@ Validado: `eligible` por plataforma, drain/resume e busca AliExpress (60 ofertas
 poller no extractor (`EXTRACTOR_JOBS_ENABLED`). Testes: 17 cenários de fila na API + 158 no extractor.
 Validação real: job enfileirado → claim → extração (60 ofertas) → `completed` com `resultRef` e slot
 liberado. Concluído na C: deadline hard no CAS de conclusão e leitura do owner
-(`GET /api/v1/extraction-jobs/:jobId` e `/result`, escopo owner/participants). **Pendente:** fan-out por
-participante (`tb_autoOfferDeliveries`, quota no consumo) e migração rolling do índice de reservas para
+(`GET /api/v1/extraction-jobs/:jobId` e `/result`, escopo owner/participants). Fan-out por participante implementado (`tb_autoOfferDeliveries`, chave
+`{jobId, claim, ownerId, category}`, idempotente, com endpoint admin de consulta); a quota continua sendo
+debitada pelo motor no consumo de cada owner. **Pendente:** migração rolling do índice de reservas para
 `workerId`.
 
 **Etapa D (parcial):** admissão de frota do bulk implementada — `tb_aiExtractorBulkLeases` com um lease
@@ -1431,9 +1432,8 @@ por slot garante `workersComBulk ≤ frotaSaudável−1` (uma instância livre p
 
 **Etapa E (parcial):** adaptador `searchOffersViaPull` + `AI_EXTRACTOR_QUEUE_ENABLED` (default false) e
 `autoOfferSearch` usando a fila quando ligada (sem render na API; Shopee fica no legado). Testes: 3
-cenários (gate default off, mapeamento do resultado, falha → vazio). **Pendente:** rodada real de
-Ofertas Automáticas com a flag ligada (paridade/throughput), fan-out por participante e aceite de CPU da
-API (≤ baseline +10 p.p.).
+cenários (gate default off, mapeamento do resultado, falha → vazio). Fan-out por participante concluído. **Pendente:** rodada real de
+Ofertas Automáticas com a flag ligada (paridade/throughput) e aceite de CPU da API (≤ baseline +10 p.p.).
 
 **Etapa F (parcial):** endpoints admin de instâncias/jobs/drain/resume/cancel/retry, logs estruturados
 de `claim/complete/fail` (com `workerId`/`jobId`/`claim`) e runbooks (`RUNBOOK_FILA_E_DRAIN`,
