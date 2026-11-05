@@ -1434,7 +1434,12 @@ cenários (gate default off, mapeamento do resultado, falha → vazio). **Penden
 Ofertas Automáticas com a flag ligada (paridade/throughput), fan-out por participante e aceite de CPU da
 API (≤ baseline +10 p.p.).
 
-**Etapas F–G:** pendentes (observabilidade/runbooks, carga/rollout).
+**Etapa F (parcial):** endpoints admin de instâncias/jobs/drain/resume/cancel/retry, logs estruturados
+de `claim/complete/fail` (com `workerId`/`jobId`/`claim`) e runbooks (`RUNBOOK_FILA_E_DRAIN`,
+`RUNBOOK_WORKER_ADD_REMOVE`, `RUNBOOK_ROTACAO_SEGREDOS`). **Pendente:** canal de alerta fora do app
+(e-mail/WhatsApp), thresholds com amostra mínima e painel admin de fila.
+
+**Etapa G:** pendente (perfil de carga, 5%→25%→100% e drill de rollback).
 
 ### 16.16 Registro de revisão
 
