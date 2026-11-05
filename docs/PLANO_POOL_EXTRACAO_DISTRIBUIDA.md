@@ -1428,7 +1428,13 @@ por slot garante `workersComBulk ≤ frotaSaudável−1` (uma instância livre p
 (`API/scripts/benchmark-workers.ts` + `API/docs/BENCHMARK_WORKERS.md`), validado localmente (2 runs,
 60 ofertas, p50 ~2 s). **Pendente:** rodar N≥30 por plataforma na VPS real e anexar CPU/RAM/event loop.
 
-**Etapas E–G:** pendentes (autoOfertas no pull, observabilidade/runbooks, carga/rollout).
+**Etapa E (parcial):** adaptador `searchOffersViaPull` + `AI_EXTRACTOR_QUEUE_ENABLED` (default false) e
+`autoOfferSearch` usando a fila quando ligada (sem render na API; Shopee fica no legado). Testes: 3
+cenários (gate default off, mapeamento do resultado, falha → vazio). **Pendente:** rodada real de
+Ofertas Automáticas com a flag ligada (paridade/throughput), fan-out por participante e aceite de CPU da
+API (≤ baseline +10 p.p.).
+
+**Etapas F–G:** pendentes (observabilidade/runbooks, carga/rollout).
 
 ### 16.16 Registro de revisão
 
