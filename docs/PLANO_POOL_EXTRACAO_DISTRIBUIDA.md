@@ -1405,6 +1405,11 @@ e responsável, antes de E; rollback de E restaura o produtor ao caminho síncro
 
 ### 16.17 Estado da implementação (2026-11-04)
 
+**Cadastro de serviços (admin):** allowlist migrou do `.env` para `tb_aiextractorservices`, com CRUD
+admin (`/admin/ai-extractor/services`). O boot migra `AI_EXTRACTOR_POOL_JSON` uma vez; `enabled=false`
+remove a instância da elegibilidade e do heartbeat no próximo ciclo (cache 30 s). A tela do FRONT
+administrativo consome esses endpoints (fora deste ciclo).
+
 **Documento de entrega (visão consolidada):** `docs/ENTREGA_POOL_EXTRACAO.md`.
 
 **Etapa A (feito):** diagnóstico, gap analysis, ADR-006 e revisões.

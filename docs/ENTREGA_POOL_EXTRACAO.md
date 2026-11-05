@@ -33,6 +33,7 @@ FRONT → API central (HUB/SWITCH)
 | `tb_aiextractorjobs` | fila durável (descritor, nunca HTML/credencial) |
 | `tb_aiextractionresults` | resultado validado `{jobId, claim}`, TTL 6 h |
 | `tb_autoofferdeliveries` | fan-out idempotente por participante |
+| `tb_aiextractorservices` | cadastro (admin) dos serviços/URLs do pool; fonte do allowlist |
 
 ## 3. Endpoints
 
@@ -50,6 +51,7 @@ FRONT → API central (HUB/SWITCH)
 
 | Método | Rota |
 | --- | --- |
+| `GET/POST/PUT/DELETE` | `/api/v1/admin/ai-extractor/services[/:serviceId]` | cadastro de serviços (URL/nome/keyEnv/enabled) |
 | `GET` | `/api/v1/admin/ai-extractor/instances` |
 | `POST` | `/api/v1/admin/ai-extractor/instances/:workerId/drain` |
 | `POST` | `/api/v1/admin/ai-extractor/instances/:workerId/resume` |

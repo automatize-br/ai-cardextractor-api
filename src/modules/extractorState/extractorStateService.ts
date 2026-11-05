@@ -106,8 +106,10 @@ export async function publishStateOnce(
   const inflight = activeExtractions()
 
   try {
+    // workerId é a identidade; dns é metadado (pode mudar entre deploys).
+    const identity = { $or: [{ workerId }, { dns }] }
     const current = await collection.findOne(
-      { dns },
+      identity,
       { projection: { saturated: 1, bootId: 1, lastSeq: 1, observedStatus: 1 } },
     )
     const fields = buildStateFields(
@@ -139,7 +141,7 @@ export async function publishStateOnce(
       { busy: env.EXTRACTOR_SATURATION_THRESHOLD, resume: env.EXTRACTOR_RESUME_THRESHOLD },
     )
     await collection.updateOne(
-      { dns },
+      identity,
       { $set: fields, $setOnInsert: { reserved: 0 } },
       { upsert: true },
     )
@@ -161,7 +163,7 @@ export async function publishHeartbeatOnce(): Promise<boolean> {
   try {
     const inflight = activeExtractions()
     await target.collection.updateOne(
-      { dns: target.dns },
+      { $or: [{ workerId: workerId || undefined }, { dns: target.dns }] },
       {
         $set: {
           lastHeartbeatAt: new Date(),
