@@ -1442,7 +1442,8 @@ de `claim/complete/fail` (com `workerId`/`jobId`/`claim`) e runbooks (`RUNBOOK_F
 e-mail/WhatsApp/Slack); sem webhook, cai em log estruturado `[alert]`. **Pendente:** configurar o canal
 externo em produção e o painel admin de fila (o endpoint de listagem já existe).
 
-**Etapa G (ferramental):** `API/scripts/load-pool.ts` (interativo com pico configurável + bulk com
+**Etapa G (ferramental):** checklist automatizado (`API/scripts/rollout-check.ts`) e
+`API/docs/CHECKLIST_ROLLOUT.md` (ordem de deploy, verificações, go/no-go e rollback ≤5 min); `API/scripts/load-pool.ts` (interativo com pico configurável + bulk com
 `queueAge`/`expirados`/ofertas) e `API/docs/LOAD_TEST_G.md` com perfil, metas e plano 5%→25%→100% +
 drill de rollback. Validado localmente (2 buscas, 6 ofertas, 0 erro). **Pendente:** executar o perfil
 real (8 usuários/pico 3, 6 jobs) com frota ≥3, medir CPU da API e assinar cada passo do rollout.
