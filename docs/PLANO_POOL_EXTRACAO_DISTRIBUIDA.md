@@ -1418,9 +1418,10 @@ Validado: `eligible` por plataforma, drain/resume e busca AliExpress (60 ofertas
 (lease vencido, fila vencida, cancelamento, resultado ausente, retenção), cancel/retry admin, worker
 poller no extractor (`EXTRACTOR_JOBS_ENABLED`). Testes: 17 cenários de fila na API + 158 no extractor.
 Validação real: job enfileirado → claim → extração (60 ofertas) → `completed` com `resultRef` e slot
-liberado. Pendente na C: `attempt`/`claim` no CAS de conclusão com deadline estrito, fan-out por
-participante (`tb_autoOfferDeliveries`), endpoint de leitura para o owner e migração rolling do índice de
-reservas.
+liberado. Concluído na C: deadline hard no CAS de conclusão e leitura do owner
+(`GET /api/v1/extraction-jobs/:jobId` e `/result`, escopo owner/participants). **Pendente:** fan-out por
+participante (`tb_autoOfferDeliveries`, quota no consumo) e migração rolling do índice de reservas para
+`workerId`.
 
 **Etapa D (parcial):** admissão de frota do bulk implementada — `tb_aiExtractorBulkLeases` com um lease
 por slot garante `workersComBulk ≤ frotaSaudável−1` (uma instância livre para o síncrono), com
