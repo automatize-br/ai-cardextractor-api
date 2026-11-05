@@ -1405,6 +1405,8 @@ e responsável, antes de E; rollback de E restaura o produtor ao caminho síncro
 
 ### 16.17 Estado da implementação (2026-11-04)
 
+**Documento de entrega (visão consolidada):** `docs/ENTREGA_POOL_EXTRACAO.md`.
+
 **Etapa A (feito):** diagnóstico, gap analysis, ADR-006 e revisões.
 
 **Etapa B (feito e validado ao vivo):** `workerId` persistido em arquivo (fail-closed), heartbeat de
