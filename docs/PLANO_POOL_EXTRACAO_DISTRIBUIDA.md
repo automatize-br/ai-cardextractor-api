@@ -1436,8 +1436,10 @@ API (≤ baseline +10 p.p.).
 
 **Etapa F (parcial):** endpoints admin de instâncias/jobs/drain/resume/cancel/retry, logs estruturados
 de `claim/complete/fail` (com `workerId`/`jobId`/`claim`) e runbooks (`RUNBOOK_FILA_E_DRAIN`,
-`RUNBOOK_WORKER_ADD_REMOVE`, `RUNBOOK_ROTACAO_SEGREDOS`). **Pendente:** canal de alerta fora do app
-(e-mail/WhatsApp), thresholds com amostra mínima e painel admin de fila.
+`RUNBOOK_WORKER_ADD_REMOVE`, `RUNBOOK_ROTACAO_SEGREDOS`). Alertas implementados (`poolAlerts`): FLEET_LOW/WORKER_STALE (P1) e LEASE_EXPIRED/RESULT_MISSING/QUEUE_BACKLOG
+(P2), com dedupe/cooldown e envio por **webhook** (`AI_EXTRACTOR_ALERT_WEBHOOK_URL`, integrável a
+e-mail/WhatsApp/Slack); sem webhook, cai em log estruturado `[alert]`. **Pendente:** configurar o canal
+externo em produção e o painel admin de fila (o endpoint de listagem já existe).
 
 **Etapa G (ferramental):** `API/scripts/load-pool.ts` (interativo com pico configurável + bulk com
 `queueAge`/`expirados`/ofertas) e `API/docs/LOAD_TEST_G.md` com perfil, metas e plano 5%→25%→100% +
