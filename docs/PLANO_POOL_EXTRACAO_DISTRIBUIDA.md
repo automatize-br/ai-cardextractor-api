@@ -1422,7 +1422,13 @@ liberado. Pendente na C: `attempt`/`claim` no CAS de conclusão com deadline est
 participante (`tb_autoOfferDeliveries`), endpoint de leitura para o owner e migração rolling do índice de
 reservas.
 
-**Etapas D–G:** pendentes (benchmark, autoOfertas no pull, observabilidade/runbooks, carga/rollout).
+**Etapa D (parcial):** admissão de frota do bulk implementada — `tb_aiExtractorBulkLeases` com um lease
+por slot garante `workersComBulk ≤ frotaSaudável−1` (uma instância livre para o síncrono), com
+`AI_EXTRACTOR_BULK_MIN_FLEET` (default 3; dev/local pode 1). Ferramental de benchmark criado
+(`API/scripts/benchmark-workers.ts` + `API/docs/BENCHMARK_WORKERS.md`), validado localmente (2 runs,
+60 ofertas, p50 ~2 s). **Pendente:** rodar N≥30 por plataforma na VPS real e anexar CPU/RAM/event loop.
+
+**Etapas E–G:** pendentes (autoOfertas no pull, observabilidade/runbooks, carga/rollout).
 
 ### 16.16 Registro de revisão
 
