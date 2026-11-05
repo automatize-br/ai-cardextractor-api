@@ -135,11 +135,23 @@ export const env = {
   // próprio estado direto em tb_aiExtractorInstances; a API só lê.
   EXTRACTOR_STATE_MODE: readStateMode(),
   EXTRACTOR_STATE_INTERVAL_MS: readInt('EXTRACTOR_STATE_INTERVAL_MS', 180_000),
+  // Heartbeat de liveness/lease: update PARCIAL (só lastHeartbeatAt/in-flight),
+  // independente do snapshot de métricas acima.
+  EXTRACTOR_STATE_HEARTBEAT_MS: readInt('EXTRACTOR_STATE_HEARTBEAT_MS', 20_000),
+  EXTRACTOR_WORKER_ID: readString('EXTRACTOR_WORKER_ID'),
+  // Arquivo persistente do workerId (uuid). Obrigatório quando STATE_MODE=mongo:
+  // env não é persistência e um id novo a cada boot órfã jobs/reservas.
+  EXTRACTOR_WORKER_ID_FILE: readString('EXTRACTOR_WORKER_ID_FILE', '.data/worker-id'),
+  EXTRACTOR_HOST: readString('EXTRACTOR_HOST'),
+  // O worker ainda NÃO embarca Chromium. Plataformas JS-only (Shopee) ficam
+  // fora da capability até a Etapa E decidir embedar browser.
+  WORKER_BROWSER_ENABLED: readBoolean('WORKER_BROWSER_ENABLED', false),
   EXTRACTOR_SATURATION_THRESHOLD: readFloat('EXTRACTOR_SATURATION_THRESHOLD', 75),
   EXTRACTOR_RESUME_THRESHOLD: readFloat('EXTRACTOR_RESUME_THRESHOLD', 60),
   EXTRACTOR_VERSION: readString('EXTRACTOR_VERSION', 'dev'),
   EXTRACTOR_CARD_TRIMMER_VERSION: readString('EXTRACTOR_CARD_TRIMMER_VERSION', 'trim@1'),
-  EXTRACTOR_CAPACITY: readInt('EXTRACTOR_CAPACITY', 2),
+  EXTRACTOR_CAPACITY: readInt('EXTRACTOR_CAPACITY', 1),
+  EXTRACTOR_CAPACITY_MAX: readInt('EXTRACTOR_CAPACITY_MAX', 2),
   EXTRACTOR_HEARTBEAT_INTERVAL_MS: readInt('EXTRACTOR_HEARTBEAT_INTERVAL_MS', 30000),
   EXTRACTOR_MAX_HTML_BYTES: readInt('EXTRACTOR_MAX_HTML_BYTES', 1_048_576),
   EXTRACTOR_MAX_HTML_GZIP_BYTES: readInt('EXTRACTOR_MAX_HTML_GZIP_BYTES', 524_288),

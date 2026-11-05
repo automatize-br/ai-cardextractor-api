@@ -123,7 +123,17 @@ connectDB()
         await bootstrapAiConfig()
       }
       if (env.EXTRACTOR_STATE_MODE === 'mongo') {
-        startExtractorState()
+        try {
+          // workerId é persistido em arquivo e fail-closed: subir com identidade
+          // efêmera órfã jobs/reservas no pool.
+          startExtractorState()
+        } catch (error) {
+          console.error(
+            '[Server] ❌ falha ao inicializar identidade do worker:',
+            error instanceof Error ? error.message : error,
+          )
+          process.exit(1)
+        }
       } else {
         startHeartbeat()
       }

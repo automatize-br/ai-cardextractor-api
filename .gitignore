@@ -21,3 +21,6 @@ __pycache__/
 
 # dumps de diagnóstico (SCRAPE_DEBUG_DUMP)
 /tmp/
+
+# identidade local do worker (uuid persistido)
+.data/
