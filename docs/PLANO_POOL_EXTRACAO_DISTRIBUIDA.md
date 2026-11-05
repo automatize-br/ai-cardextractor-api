@@ -49,7 +49,7 @@ API central (1 processo; multi-processo exige reserva atômica)
 ```
 
 - Cada extractor: `EXTRACTOR_DNS`, `EXTRACTOR_KEY`, `EXTRACTOR_VERSION`; `bootId` é gerado por processo (`crypto.randomUUID`), não é env estável.
-- Central: `AI_EXTRACTOR_POOL_JSON=[{dns,keyEnv}]`.
+- Central: `AI_INTERNAL_KEY` (mesma em todos os serviços) + cadastro de serviços no banco (o `AI_EXTRACTOR_POOL_JSON` é legado/migrado no boot).
 - Sem browser e sem modelo local no extractor.
 - LLM externo via API. Sem provider externo, perfil `cards` cai em heurística.
 
@@ -866,7 +866,7 @@ onde há trabalho assíncrono com recuperação necessária: **Ofertas Automáti
 | G10 | Freshness (§8.1) | 10 min HTML/pool; 5 min resultado; 6 h autoOfertas | Tabela única de TTL + `fetchedAt` no payload | C |
 | G11 | `draining` (§13) | Só no shutdown, sobrescrito | `desiredStatus` (admin) × `lastHeartbeatAt` (worker) + reaper | B |
 | G12 | Logs `jobId/workerId` (§13.1) | `requestId` | Campos novos já na Etapa C | C |
-| G13 | Segurança (§11/§16) | Chave global, sem fail-closed, `redirect:'follow'` | Chave por instância, fail-closed, redirect manual, RBAC Mongo | B |
+| G13 | Segurança (§11/§16) | Chave global, sem fail-closed, `redirect:'follow'` | Chave compartilhada `AI_INTERNAL_KEY` (fail-closed), redirect manual, RBAC Mongo | B |
 | G14 | 20 testes obrigatórios (§15) | 0 de fila; 1402 testes existentes (não auditados aqui) | 53 cenários (§16.12) | C/E |
 | G15 | Restart não prende job (§15.18/19) | Sem jobs | Lease expira; API relê do Mongo | C |
 | G16 | Rollback por flag (§18) | `AI_EXTRACTOR_MODE` + fallback | `AI_EXTRACTOR_QUEUE_ENABLED` + drenagem (§16.13) | C |
@@ -1183,11 +1183,14 @@ varredura diária + TTL. `staged` é auditoria; a leitura usa **somente** `resul
 
 ### 16.9 Segurança
 
-- **Chave por instância**: `x-extractor-key` (allowlist `AI_EXTRACTOR_POOL_JSON[].keyEnv`) + `x-internal-key`
-  para o control plane; comparação em tempo constante. Remover o bypass de chave vazia e **falhar o boot**
-  fora de dev/CI se `AI_INTERNAL_KEY` estiver vazia.
-- O `/internal/ai-extractor/config` devolve a `apiKey` **decifrada**; passa a exigir chave de instância e
-  allowlist, e a resposta é escopada (sem expor de outros workers).
+- **Chave compartilhada (decisão de produto, 2026-11-05)**: **todas** as instâncias e a API usam a MESMA
+  `AI_INTERNAL_KEY` do `.env`, enviada em `x-internal-key` e comparada em tempo constante. Não há chave
+  por instância (`x-extractor-key`); `keyEnv` em `tb_aiextractorservices` é **legado** do heartbeat HMAC
+  (`EXTRACTOR_STATE_MODE=central`) e não é usado no claim/fila. Em dev/teste a chave vazia libera; fora
+  disso toda rota interna é fail-closed (401/503). Requisito operacional: a MESMA chave no `.env` da API
+  e de cada serviço.
+- O `/internal/ai-extractor/config` devolve a `apiKey` **decifrada**; exige a chave compartilhada
+  (`AI_INTERNAL_KEY`) e a allowlist de serviços; a resposta não expõe dados de outros workers.
 - Estado no modo Mongo é auto-reportado: **MongoDB não restringe escrita por documento**, então a defesa
   é (a) claim/conclusão/resultado via **endpoint central autenticado por instância** (o worker não escreve
   jobs/resultados direto), (b) sanidade no central (`capacity ≤ MAX`, `use ∈ [0,100]`, `workerId` na

@@ -81,7 +81,7 @@ para rollback.
 | --- | --- | --- |
 | `EXTRACTOR_DNS` | — | host/DNS do worker (allowlist da API) |
 | `EXTRACTOR_CONTROL_URL` | — | URL da API central (fila/health) |
-| `AI_INTERNAL_KEY` | — | chave do control plane (mesma da API) |
+| `AI_INTERNAL_KEY` | — | **chave única compartilhada** do control plane (idêntica na API e em todos os serviços) |
 | `EXTRACTOR_STATE_MODE` | `central` | `mongo` = publica estado direto no Atlas |
 | `EXTRACTOR_WORKER_ID_FILE` | `.data/worker-id` | identidade estável (fail-closed) |
 | `EXTRACTOR_STATE_HEARTBEAT_MS` | `20000` | liveness/lease |
@@ -165,5 +165,5 @@ drain/resume, alertas, mapeamento do pull.
 - `legacy`/`shadow` e `autoOfferSearch` com `AI_EXTRACTOR_QUEUE_ENABLED=false` ainda renderizam na API.
 - Shopee permanece no legado (worker sem browser).
 - Reservas usam `(dns, slot)` como lock, com `workerId` gravado; migração para `workerId` puro pendente.
-- Control plane usa `x-internal-key` compartilhada (chave por instância pendente).
+- Control plane usa **uma chave compartilhada** `AI_INTERNAL_KEY` (decisão de produto); `keyEnv` do cadastro é legado do heartbeat HMAC.
 - Benchmark/carga/rollout reais ainda não executados (dependem de VPS/frota).
