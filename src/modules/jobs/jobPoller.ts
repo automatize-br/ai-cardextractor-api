@@ -33,6 +33,10 @@ let stopped = false
 let ticking = false
 let lastError: string | null = null
 
+// Preflight: antes de pedir trabalho, confirma que a API central responde.
+let apiHealthy = true
+let apiHealthAt = 0
+
 function controlBase(): string {
   return env.EXTRACTOR_CONTROL_URL.replace(/\/+$/, '')
 }
@@ -165,9 +169,26 @@ async function runJob(job: ClaimedJob, workerId: string): Promise<void> {
   }
 }
 
+async function centralHealthy(): Promise<boolean> {
+  if (Date.now() - apiHealthAt < 10_000) return apiHealthy
+  try {
+    const response = await fetch(`${controlBase()}/api/v1/health`, {
+      signal: AbortSignal.timeout(2_000),
+    })
+    apiHealthy = response.ok
+  } catch {
+    apiHealthy = false
+  }
+  apiHealthAt = Date.now()
+  if (!apiHealthy) console.warn('[jobs] API central indisponível (healthcheck); aguardando')
+  return apiHealthy
+}
+
 async function tick(): Promise<void> {
   if (stopped || ticking || !env.EXTRACTOR_JOBS_ENABLED) return
   if (activeExtractions() >= env.EXTRACTOR_CAPACITY) return
+  // Healthcheck antes de qualquer requisição ao control plane.
+  if (!(await centralHealthy())) return
   ticking = true
   try {
     const workerId = loadWorkerId()
@@ -225,4 +246,6 @@ export function resetJobPollerForTests(): void {
   stopped = false
   ticking = false
   lastError = null
+  apiHealthy = true
+  apiHealthAt = 0
 }

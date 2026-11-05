@@ -20,6 +20,8 @@ FRONT → API central (HUB/SWITCH)
 - **Bulk (Ofertas Automáticas):** fila pull durável; worker não escreve no Mongo (claim/resultado via
   control plane autenticado).
 - **HTML nunca sai do worker**; a API recebe ofertas já revalidadas.
+- **Preflight:** antes de enviar trabalho, a API chama `GET /api/v1/health` da instância (cache 10 s);
+  no bulk, o worker chama `GET /api/v1/health` da API antes do claim.
 - **Identidade do worker:** `workerId` UUID persistido em arquivo; `dns`/`host` são metadados.
 - **Estado:** `desiredStatus` (admin/reaper) × `observedStatus` (reaper) × `lastHeartbeatAt` (worker).
 
@@ -102,6 +104,7 @@ para rollback.
 | `AI_EXTRACTOR_POOL_JSON` | — | allowlist `[{dns,keyEnv}]` |
 | `AI_EXTRACTOR_LEGACY_FALLBACK` | `true` | fallback durante migração |
 | `AI_EXTRACTOR_SELECTION_MAX_AGE_MS` | `60000` | heartbeat máximo para seleção |
+| `AI_EXTRACTOR_HEALTH_TIMEOUT_MS` / `_CACHE_MS` | `1000` / `10000` | healthcheck antes das requisições |
 | `AI_EXTRACTOR_OFFERS_CONTRACT_VERSION` | `2` | gate do contrato de ofertas |
 | `AI_EXTRACTOR_OFFERS_CONTRACT_TOLERANCE_UNTIL` | — | janela de rollout (ISO) |
 | `AI_EXTRACTOR_CAPACITY_MAX` | `2` | teto de capacidade |
