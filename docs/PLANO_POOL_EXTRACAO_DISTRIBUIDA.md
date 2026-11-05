@@ -1169,6 +1169,7 @@ varredura diária + TTL. `staged` é auditoria; a leitura usa **somente** `resul
 | `AI_EXTRACTOR_SELECTION_MAX_AGE_MS` | 60000 | heartbeat máximo para seleção |
 | `AI_EXTRACTOR_HEALTH_TIMEOUT_MS` | 1000 | timeout do healthcheck do worker |
 | `AI_EXTRACTOR_HEALTH_CACHE_MS` | 10000 | cache do resultado do healthcheck |
+| `AI_EXTRACTOR_MAX_INSTANCE_ATTEMPTS` | 3 | teto de instâncias testadas em sequência (ordem determinística) |
 | `AI_EXTRACTOR_LEASE_MS` | 180000 | lease do job (renovado a cada 20 s) |
 | `AI_EXTRACTOR_JOB_BUDGET_MS` | 285000 | `maxCategorias(5) × p95(45 s) + folga(60 s)`, carimbado no claim |
 | `AI_EXTRACTOR_QUEUE_DEADLINE_MS` | 600000 | idade máxima na fila |
@@ -1273,7 +1274,9 @@ e responsável, antes de E; rollback de E restaura o produtor ao caminho síncro
 ### 16.9.2 Healthcheck antes das requisições
 
 A API chama `GET /api/v1/health` da instância antes de enviar trabalho (síncrono/direct), com timeout de
-1 s e cache de 10 s; instância sem resposta é pulada e, se nenhuma responder, a busca retorna 503. No
+1 s e cache de 10 s. A ordem é determinística (score + lastDispatchedAt): se a resposta não for
+`status: ok`, tenta a PRÓXIMA da lista, no máximo `AI_EXTRACTOR_MAX_INSTANCE_ATTEMPTS` (3) — sem sorteio,
+sem repetir a mesma instância e sem loop. Sem nenhuma saudável, a busca retorna 503. No
 bulk, o worker chama `GET <API>/api/v1/health` antes de cada claim (cache 10 s) e não faz requisição com
 a API fora. O healthcheck não reserva slot.
 

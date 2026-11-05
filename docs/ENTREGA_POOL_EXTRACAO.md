@@ -105,6 +105,7 @@ para rollback.
 | `AI_EXTRACTOR_LEGACY_FALLBACK` | `true` | fallback durante migração |
 | `AI_EXTRACTOR_SELECTION_MAX_AGE_MS` | `60000` | heartbeat máximo para seleção |
 | `AI_EXTRACTOR_HEALTH_TIMEOUT_MS` / `_CACHE_MS` | `1000` / `10000` | healthcheck antes das requisições |
+| `AI_EXTRACTOR_MAX_INSTANCE_ATTEMPTS` | `3` | teto de instâncias testadas em sequência (sem sorteio/loop) |
 | `AI_EXTRACTOR_OFFERS_CONTRACT_VERSION` | `2` | gate do contrato de ofertas |
 | `AI_EXTRACTOR_OFFERS_CONTRACT_TOLERANCE_UNTIL` | — | janela de rollout (ISO) |
 | `AI_EXTRACTOR_CAPACITY_MAX` | `2` | teto de capacidade |
