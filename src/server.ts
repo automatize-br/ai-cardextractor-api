@@ -10,6 +10,7 @@ import { disposeCatalogProviders } from './providers/llm/catalogProvider.ts'
 import { bootstrapAiConfig, startHeartbeat, stopHeartbeat } from './modules/heartbeat/heartbeatService.ts'
 import { startAiConfigPoll, stopAiConfigPoll } from './modules/aiConfig/mongoConfigSource.ts'
 import { startExtractorState, stopExtractorState } from './modules/extractorState/extractorStateService.ts'
+import { startJobPoller, stopJobPoller } from './modules/jobs/jobPoller.ts'
 
 // Fail-closed: fora de dev/teste, sem chave interna o servico nao sobe.
 if (isProductionEnvironment() && env.AI_INTERNAL_KEY === '') {
@@ -97,6 +98,7 @@ function shutdown(signal: string): void {
   server.close(() => {
     void Promise.allSettled([
       stopHeartbeat(),
+      stopJobPoller(),
       stopExtractorState(),
       stopAiConfigPoll(),
       disposeProviders(),
@@ -137,6 +139,7 @@ connectDB()
       } else {
         startHeartbeat()
       }
+      startJobPoller()
     })
   })
   .catch((error) => {

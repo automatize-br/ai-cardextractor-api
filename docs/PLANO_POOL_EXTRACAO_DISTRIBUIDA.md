@@ -1403,6 +1403,27 @@ e responsável, antes de E; rollback de E restaura o produtor ao caminho síncro
 41. Reserva é renovada junto do lease; falha de renovação interrompe o trabalho.
 42. Resultado só é publicado via endpoint central após CAS do job; compensação restrita à própria chave.
 
+### 16.17 Estado da implementação (2026-11-04)
+
+**Etapa A (feito):** diagnóstico, gap analysis, ADR-006 e revisões.
+
+**Etapa B (feito e validado ao vivo):** `workerId` persistido em arquivo (fail-closed), heartbeat de
+liveness de 20 s + snapshot de 180 s, `offersContractVersion=2`/`coreMajor`/`capabilities`,
+`desiredStatus` × `observedStatus` com reaper CAS, drain/resume admin, gate por capability (Shopee fora
+até haver browser), `capacity` default 1 (clamp 2), coleção canônica `tb_aiextractorinstances`.
+Validado: `eligible` por plataforma, drain/resume e busca AliExpress (60 ofertas, BRL) via pool.
+
+**Etapa C (feito, em validação):** `tb_aiExtractorJobs` + `tb_aiExtractionResults`, claim atômico
+(reserva de slot → job), lease + CAS em toda transição, `claims`/`attempts`/backoff, sweeper
+(lease vencido, fila vencida, cancelamento, resultado ausente, retenção), cancel/retry admin, worker
+poller no extractor (`EXTRACTOR_JOBS_ENABLED`). Testes: 17 cenários de fila na API + 158 no extractor.
+Validação real: job enfileirado → claim → extração (60 ofertas) → `completed` com `resultRef` e slot
+liberado. Pendente na C: `attempt`/`claim` no CAS de conclusão com deadline estrito, fan-out por
+participante (`tb_autoOfferDeliveries`), endpoint de leitura para o owner e migração rolling do índice de
+reservas.
+
+**Etapas D–G:** pendentes (benchmark, autoOfertas no pull, observabilidade/runbooks, carga/rollout).
+
 ### 16.16 Registro de revisão
 
 | Data | Revisor | Modelo | Veredito | Bloqueios |
