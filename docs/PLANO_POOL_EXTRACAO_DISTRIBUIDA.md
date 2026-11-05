@@ -1439,7 +1439,10 @@ de `claim/complete/fail` (com `workerId`/`jobId`/`claim`) e runbooks (`RUNBOOK_F
 `RUNBOOK_WORKER_ADD_REMOVE`, `RUNBOOK_ROTACAO_SEGREDOS`). **Pendente:** canal de alerta fora do app
 (e-mail/WhatsApp), thresholds com amostra mínima e painel admin de fila.
 
-**Etapa G:** pendente (perfil de carga, 5%→25%→100% e drill de rollback).
+**Etapa G (ferramental):** `API/scripts/load-pool.ts` (interativo com pico configurável + bulk com
+`queueAge`/`expirados`/ofertas) e `API/docs/LOAD_TEST_G.md` com perfil, metas e plano 5%→25%→100% +
+drill de rollback. Validado localmente (2 buscas, 6 ofertas, 0 erro). **Pendente:** executar o perfil
+real (8 usuários/pico 3, 6 jobs) com frota ≥3, medir CPU da API e assinar cada passo do rollout.
 
 ### 16.16 Registro de revisão
 
