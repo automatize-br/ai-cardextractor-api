@@ -1418,12 +1418,22 @@ a API fora. O healthcheck não reserva slot.
 41. Reserva é renovada junto do lease; falha de renovação interrompe o trabalho.
 42. Resultado só é publicado via endpoint central após CAS do job; compensação restrita à própria chave.
 
-### 16.17 Estado da implementação (2026-11-04)
+### 16.17 Estado da implementação (2026-11-05)
 
 **Cadastro de serviços (admin):** allowlist migrou do `.env` para `tb_aiextractorservices`, com CRUD
 admin (`/admin/ai-extractor/services`). O boot migra `AI_EXTRACTOR_POOL_JSON` uma vez; `enabled=false`
 remove a instância da elegibilidade e do heartbeat no próximo ciclo (cache 30 s). A tela do FRONT
-administrativo consome esses endpoints (fora deste ciclo).
+**já está implementada**: Administração → Serviços de extração (`/admin/servicos-extracao`), com status
+em tempo real e CRUD.
+
+**Autenticação e healthcheck (2026-11-05):** chave **única compartilhada** `AI_INTERNAL_KEY` no `.env` da
+API e de todos os serviços (header `x-internal-key`, tempo constante, fail-closed fora de dev). Antes de
+qualquer envio, a API chama `GET /api/v1/health` da instância (timeout 1 s, cache 10 s); sem `status: ok`
+tenta a próxima da lista determinística (score/`lastDispatchedAt`), no máximo
+`AI_EXTRACTOR_MAX_INSTANCE_ATTEMPTS` (3) — sem sorteio/loop; nenhuma saudável → 503 sem reservar slot. No
+bulk, o worker valida `GET <API>/api/v1/health` antes do claim.
+
+**Validação local completa:** `docs/VALIDACAO_2026-11-05.md`.
 
 **Documento de entrega (visão consolidada):** `docs/ENTREGA_POOL_EXTRACAO.md`.
 

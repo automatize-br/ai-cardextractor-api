@@ -2,8 +2,9 @@
 
 **Versão do plano:** 5.2.0 (`docs/PLANO_POOL_EXTRACAO_DISTRIBUIDA.md`)
 **Repositórios:** `ai-extractor-api` (workers) + `../API` (central)
-**Escopo:** toda mudança é entre **API central ↔ extractors**. **Nenhuma mudança no FRONT**; contrato
-público (`MarketplaceProductSearchResult[]`, headers, códigos) preservado.
+**Escopo:** a mudança de coleta é entre **API central ↔ extractors**. O contrato público
+(`MarketplaceProductSearchResult[]`, headers, códigos) foi preservado — a única mudança de FRONT é a
+tela administrativa de cadastro dos serviços. **Registro da validação:** `docs/VALIDACAO_2026-11-05.md`.
 
 ---
 
@@ -20,8 +21,12 @@ FRONT → API central (HUB/SWITCH)
 - **Bulk (Ofertas Automáticas):** fila pull durável; worker não escreve no Mongo (claim/resultado via
   control plane autenticado).
 - **HTML nunca sai do worker**; a API recebe ofertas já revalidadas.
-- **Preflight:** antes de enviar trabalho, a API chama `GET /api/v1/health` da instância (cache 10 s);
-  no bulk, o worker chama `GET /api/v1/health` da API antes do claim.
+- **Auth:** uma única `AI_INTERNAL_KEY` compartilhada (API + todos os serviços), header `x-internal-key`
+  em tempo constante; fail-closed fora de dev.
+- **Preflight:** antes de enviar trabalho, a API chama `GET /api/v1/health` da instância (timeout 1 s,
+  cache 10 s). Sem `status: ok`, tenta a **próxima** da lista ordenada (score/`lastDispatchedAt`), no
+  máximo `AI_EXTRACTOR_MAX_INSTANCE_ATTEMPTS` (3) — sem sorteio, sem repetir e sem loop. Nenhuma
+  saudável → 503 sem reservar slot. No bulk, o worker chama `GET /api/v1/health` da API antes do claim.
 - **Identidade do worker:** `workerId` UUID persistido em arquivo; `dns`/`host` são metadados.
 - **Estado:** `desiredStatus` (admin/reaper) × `observedStatus` (reaper) × `lastHeartbeatAt` (worker).
 
@@ -74,6 +79,15 @@ FRONT → API central (HUB/SWITCH)
 `POST /api/v1/extract-offers` — o worker busca (`unblocker → proxy → HTTP`), resolve challenge, recorta,
 extrai e revalida. Retorna `offers[]` no contrato `RawOffer`. O endpoint legado `/api/v1/extract` fica
 para rollback.
+
+### Serviços (cadastro admin) e tela
+
+- Cadastro no banco (`tb_aiextractorservices`), fonte do allowlist; boot migra o `AI_EXTRACTOR_POOL_JSON`
+  uma única vez.
+- CRUD: `GET/POST/PUT/DELETE /api/v1/admin/ai-extractor/services[/:serviceId]`.
+- `enabled=false` tira o serviço da elegibilidade e do allowlist do heartbeat em até 30 s.
+- FRONT: **Administração → Serviços de extração** (`/admin/servicos-extracao`) lista cadastro + status
+  em tempo real (heartbeat/CPU/capacidade/capabilities) e permite criar/editar/habilitar/remover.
 
 ## 4. Variáveis de ambiente
 
@@ -170,4 +184,5 @@ drain/resume, alertas, mapeamento do pull.
 - Shopee permanece no legado (worker sem browser).
 - Reservas usam `(dns, slot)` como lock, com `workerId` gravado; migração para `workerId` puro pendente.
 - Control plane usa **uma chave compartilhada** `AI_INTERNAL_KEY` (decisão de produto); `keyEnv` do cadastro é legado do heartbeat HMAC.
+- Healthcheck é cacheado (10 s); não adiciona duas requisições por busca.
 - Benchmark/carga/rollout reais ainda não executados (dependem de VPS/frota).
