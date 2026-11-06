@@ -81,8 +81,8 @@ O adapter vai para `training/out/`; com `--merge`, o HF mesclado fica em
 
 ## 5. Virar GGUF (Ubuntu/WSL2)
 
-O serviço usa `node-llama-cpp` (GGUF). Converta o modelo mesclado com o
-llama.cpp e quantize:
+O runtime v2 não carrega GGUF dentro do Node. Converta o modelo mesclado com o
+llama.cpp, quantize e sirva via `llama.cpp server`/vLLM/Ollama (OpenAI-compatible):
 
 ```bash
 git clone https://github.com/ggml-org/llama.cpp ~/llama.cpp
@@ -90,9 +90,9 @@ python3 ~/llama.cpp/convert_hf_to_gguf.py training/out/merged --outfile ~/qwen-f
 ~/llama.cpp/build/bin/llama-quantize ~/qwen-ft.f16.gguf ~/qwen-ft.q4_k_m.gguf Q4_K_M
 ```
 
-Copie o GGUF para `src/LLMS/` (ou aponte `AI_MODEL_PATH`), ajuste
-`AI_MODEL_VERSION` e reinicie com `AI_ADJ_MODE=shadow` para comparar com a
-linha de base antes de `assist`.
+Sirva o GGUF com `llama-server -m ~/qwen-ft.q4_k_m.gguf --port 8080`, declare
+um modelo `openai-compatible` em `AI_MODELS_JSON` e reinicie com
+`AI_MODE=shadow` para comparar com a linha de base antes de `assist`.
 
 ## 6. Regras
 

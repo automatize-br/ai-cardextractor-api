@@ -4,7 +4,7 @@ import { PACK_VERSION, PRICE_KINDS } from '../../enums/adjudication.ts'
 import { ApiError } from '../../exceptions/ApiError.ts'
 import { safeParseJsonObject, toFiniteNumber, toNonEmptyString } from '../../helpers/safeParseJson.ts'
 import { computePackHash } from '../../helpers/packHash.ts'
-import { indexForLetter, NONE_LETTER } from '../../providers/llm/grammar.ts'
+import { indexForLetter, NONE_LETTER } from '../../providers/llm/candidateRef.ts'
 import type {
   AdjudicationCard,
   AdjudicationDecision,

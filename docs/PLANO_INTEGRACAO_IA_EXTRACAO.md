@@ -1,11 +1,12 @@
 # Plano de Integração — IA de Extração de Ofertas
 
-**Versão:** 1.0.17
+**Versão:** 1.0.18
 **Criado em:** 2026-10-21
 **Última atualização:** 2026-10-21
 **Status:** Concluído (F1–F7)
 **Substitui:** `01_ARQUITETURA_E_IA.md` (documento original com 4 documentos empacotados e erros técnicos)
 **ADRs relacionados:** `docs/ADR-005-extracao-hibrida.md`, `../../API/docs/adr/004-deterministic-scraping.md`
+**Evolução:** `docs/PLANO_EXTRACAO_UNIVERSAL.md` (v2.1.1) define a substituição do adjudicador hardcoded por perfis declarativos no `.env`, catálogo de modelos e extração universal.
 
 ---
 
@@ -13,6 +14,7 @@
 
 | Data | Versão | Alteração |
 | --- | --- | --- |
+| 2026-10-26 | 1.0.18 | Evolução v2 em `docs/PLANO_EXTRACAO_UNIVERSAL.md`: perfis no `.env`, catálogo de modelos, `/v1/execute` e cache; `/v1/adjudicate` preservado como adaptador. |
 | 2026-10-21 | 1.0.0 | Criação do plano consolidado. Consolida as decisões das duas rodadas de revisão adversarial (backend e produto), corrige os erros técnicos do documento original e define o escopo do MVP. |
 | 2026-10-21 | 1.0.1 | Registrada a criação do microserviço `ai-extractor-api` (F0/F1) e o contrato de adjudicação implementado. |
 | 2026-10-21 | 1.0.2 | Repositório renomeado para `ai-extractor-api`; planos e ADR movidos para `ai-extractor-api/docs/`. Referências de caminho atualizadas. |

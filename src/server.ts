@@ -1,10 +1,16 @@
 import './config/timezone.ts'
 import http from 'node:http'
 import { createApp } from './app.ts'
-import { env, isProductionEnvironment } from './config/env.ts'
+import { aiConfigSource, env, isProductionEnvironment } from './config/env.ts'
+import { validateConfig } from './config/validate.ts'
 import { connectDB, disconnectDB } from './providers/mongoose.ts'
 import { closePersistence } from './providers/persistence/index.ts'
-import { disposeProviders, getProvider } from './providers/llm/index.ts'
+import { disposeProviders } from './providers/llm/index.ts'
+import { disposeCatalogProviders } from './providers/llm/catalogProvider.ts'
+import { bootstrapAiConfig, startHeartbeat, stopHeartbeat } from './modules/heartbeat/heartbeatService.ts'
+import { startAiConfigPoll, stopAiConfigPoll } from './modules/aiConfig/mongoConfigSource.ts'
+import { startExtractorState, stopExtractorState } from './modules/extractorState/extractorStateService.ts'
+import { startJobPoller, stopJobPoller } from './modules/jobs/jobPoller.ts'
 
 // Fail-closed: fora de dev/teste, sem chave interna o servico nao sobe.
 if (isProductionEnvironment() && env.AI_INTERNAL_KEY === '') {
@@ -12,18 +18,54 @@ if (isProductionEnvironment() && env.AI_INTERNAL_KEY === '') {
   process.exit(1)
 }
 
-// `fake` em producao devolveria decisoes plausiveis sem modelo real: falha silenciosa.
-if (isProductionEnvironment() && env.LLM_PROVIDER === 'fake') {
-  console.error('[Server] LLM_PROVIDER=fake nao e permitido em producao.')
+// `fake` em producao devolveria decisoes plausiveis sem modelo real. Com a
+// config vinda do painel/central o provider fisico vem de lá; o `fake` do .env
+// é apenas placeholder do catálogo legado e não atende request nenhum.
+if (isProductionEnvironment() && env.LLM_PROVIDER === 'fake' && aiConfigSource() === 'env') {
+  console.error('[Server] LLM_PROVIDER=fake nao e permitido em producao (config de IA vinda do .env).')
+  process.exit(1)
+}
+
+// A chave do painel é cifrada pela API com CREDENTIALS_ENC_KEY: sem ela o
+// extractor não consegue decifrar a API key e a IA ficaria indisponível.
+if (
+  isProductionEnvironment() &&
+  aiConfigSource() === 'mongo' &&
+  env.CREDENTIALS_ENC_KEY.length < 16
+) {
+  console.error(
+    '[Server] CREDENTIALS_ENC_KEY ausente/curta em producao — deve ser a MESMA chave (16+ chars) usada pela API central.',
+  )
   process.exit(1)
 }
 
 if (
-  env.AI_PERSISTENCE === 'mongo' &&
+  env.EXTRACTOR_STATE_MODE === 'mongo' &&
+  env.EXTRACTOR_DNS === ''
+) {
+  console.error('[Server] EXTRACTOR_STATE_MODE=mongo exige EXTRACTOR_DNS (identidade da instancia no pool).')
+  process.exit(1)
+}
+
+const needsMongo =
+  env.AI_PERSISTENCE === 'mongo' ||
+  env.EXTRACTOR_STATE_MODE === 'mongo' ||
+  aiConfigSource() === 'mongo'
+if (
+  needsMongo &&
   env.MONGO_URI === '' &&
   (env.MONGO_URL === '' || env.MONGO_USER === '' || env.MONGO_PASSWORD === '')
 ) {
-  console.error('[Server] AI_PERSISTENCE=mongo sem MONGO_URI nem MONGO_USER/MONGO_PASSWORD/MONGO_URL.')
+  console.error(
+    '[Server] Mongo obrigatorio (persistencia/estado/config) sem MONGO_URI nem MONGO_USER/MONGO_PASSWORD/MONGO_URL.',
+  )
+  process.exit(1)
+}
+
+try {
+  validateConfig()
+} catch (error) {
+  console.error('[Server] Configuração inválida:', error instanceof Error ? error.message : error)
   process.exit(1)
 }
 
@@ -54,7 +96,16 @@ function shutdown(signal: string): void {
   shuttingDown = true
   console.log(`[Server] ${signal} recebido — encerrando...`)
   server.close(() => {
-    void Promise.allSettled([disposeProviders(), closePersistence(), disconnectDB()]).finally(() => process.exit(0))
+    void Promise.allSettled([
+      stopHeartbeat(),
+      stopJobPoller(),
+      stopExtractorState(),
+      stopAiConfigPoll(),
+      disposeProviders(),
+      disposeCatalogProviders(),
+      closePersistence(),
+      disconnectDB(),
+    ]).finally(() => process.exit(0))
   })
   setTimeout(() => process.exit(0), 8_000).unref()
 }
@@ -63,23 +114,32 @@ process.on('SIGTERM', () => shutdown('SIGTERM'))
 
 connectDB()
   .then(() => {
-    server.listen(env.PORT, env.HOST, () => {
+    server.listen(env.PORT, env.HOST, async () => {
       console.log(`[Server] ai-extractor-api on http://${env.HOST}:${env.PORT} (pid ${process.pid})`)
       console.log(
-        `[Server] provider=${env.LLM_PROVIDER} model=${env.AI_MODEL_ID} persistence=${env.AI_PERSISTENCE} mode=${env.AI_ADJ_MODE}`,
+        `[Server] provider=${env.LLM_PROVIDER} model=${env.AI_MODEL_ID} persistence=${env.AI_PERSISTENCE} state=${env.EXTRACTOR_STATE_MODE} aiConfig=${aiConfigSource()}`,
       )
-      if (env.LLM_PROVIDER === 'llamacpp') {
-        const provider = getProvider(null)
-        void provider
-          .load()
-          .then(() => console.log('[Server] modelo aquecido e pronto.'))
-          .catch((error: unknown) =>
-            console.error(
-              '[Server] warm-up falhou (segue sob demanda):',
-              error instanceof Error ? error.message : error,
-            ),
-          )
+      if (aiConfigSource() === 'mongo') {
+        startAiConfigPoll()
+      } else {
+        await bootstrapAiConfig()
       }
+      if (env.EXTRACTOR_STATE_MODE === 'mongo') {
+        try {
+          // workerId é persistido em arquivo e fail-closed: subir com identidade
+          // efêmera órfã jobs/reservas no pool.
+          startExtractorState()
+        } catch (error) {
+          console.error(
+            '[Server] ❌ falha ao inicializar identidade do worker:',
+            error instanceof Error ? error.message : error,
+          )
+          process.exit(1)
+        }
+      } else {
+        startHeartbeat()
+      }
+      startJobPoller()
     })
   })
   .catch((error) => {

@@ -4,7 +4,8 @@ import ModelService from './modelService.ts'
 
 export default class ModelController {
   static async list(_req: Request, res: Response): Promise<void> {
-    sendSuccess(res, { models: await ModelService.list() })
+    const [models, catalog] = await Promise.all([ModelService.list(), ModelService.listCatalog()])
+    sendSuccess(res, { models, catalog })
   }
 
   static async load(req: Request, res: Response): Promise<void> {

@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import type { AddressInfo } from 'node:net'
 import { after, before, test } from 'node:test'
 import { createApp } from '../../src/app.ts'
+import { resetProfilesForTests } from '../../src/config/profiles.ts'
+import { makeProfile } from '../profileFixture.ts'
 
 const app = createApp()
 let server: ReturnType<typeof app.listen>
@@ -48,4 +50,31 @@ test('GET /api/v1/ready exige chave interna', async () => {
 test('GET /v1/health funciona como alias', async () => {
   const response = await fetch(`${baseUrl}/v1/health`)
   assert.equal(response.status, 200)
+})
+
+test('GET /api/v1/profiles exige chave e lista apenas metadados', async () => {
+  const unauthorized = await fetch(`${baseUrl}/api/v1/profiles`)
+  assert.equal(unauthorized.status, 401)
+
+  process.env['AI_PROFILES_JSON'] = JSON.stringify([makeProfile({ id: 'cards' })])
+  resetProfilesForTests()
+  try {
+    const response = await fetch(`${baseUrl}/api/v1/profiles`, {
+      headers: { 'x-internal-key': 'test-internal-key' },
+    })
+    assert.equal(response.status, 200)
+    const body = (await response.json()) as {
+      success: boolean
+      data: { profiles: Array<Record<string, unknown>> }
+    }
+    assert.equal(body.success, true)
+    assert.equal(body.data.profiles.length, 1)
+    assert.equal(body.data.profiles[0]?.['id'], 'cards')
+    assert.equal(body.data.profiles[0]?.['promptHash'] !== undefined, true)
+    assert.equal('prompt' in (body.data.profiles[0] ?? {}), false)
+    assert.equal('schema' in (body.data.profiles[0] ?? {}), false)
+  } finally {
+    delete process.env['AI_PROFILES_JSON']
+    resetProfilesForTests()
+  }
 })

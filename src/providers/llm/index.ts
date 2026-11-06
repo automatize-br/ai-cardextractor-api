@@ -1,7 +1,7 @@
 import { env } from '../../config/env.ts'
+import { ApiError } from '../../exceptions/ApiError.ts'
 import { FakeProvider } from './fakeProvider.ts'
 import { HttpProvider } from './httpProvider.ts'
-import { LlamaCppProvider } from './llamaCppProvider.ts'
 import type { LlmProvider, LlmProviderName, ModelConfig } from './types.ts'
 
 // ============================================================================
@@ -16,8 +16,6 @@ function defaultModel(): ModelConfig {
   return {
     id: env.AI_MODEL_ID,
     provider: env.LLM_PROVIDER,
-    path: env.AI_MODEL_PATH,
-    contextSize: env.AI_MODEL_CONTEXT,
     version: env.AI_MODEL_VERSION || `${env.AI_MODEL_ID}@1`,
   }
 }
@@ -41,13 +39,22 @@ function parseExtraModels(): ModelConfig[] {
     if (typeof raw !== 'object' || raw === null) throw new Error('AI_MODELS_JSON item must be an object')
     const item = raw as Record<string, unknown>
     if (typeof item['id'] !== 'string' || item['id'] === '') throw new Error('AI_MODELS_JSON item.id is required')
+
+    // Formato v2 (catálogo declarativo): o runtime novo lê em config/models.ts.
+    // O registry legado ignora para não tentar instanciar um provider que só
+    // existe no pipeline v2.
+    const isV2 =
+      typeof item['model'] === 'string' ||
+      typeof item['baseUrl'] === 'string' ||
+      typeof item['apiKeyEnv'] === 'string' ||
+      typeof item['structuredOutput'] === 'string'
+    if (isV2) continue
+
     const provider = item['provider'] ?? env.LLM_PROVIDER
     if (!isProviderName(provider)) throw new Error('AI_MODELS_JSON item.provider is invalid')
     models.push({
       id: item['id'],
       provider,
-      path: typeof item['path'] === 'string' ? item['path'] : env.AI_MODEL_PATH,
-      contextSize: typeof item['contextSize'] === 'number' ? item['contextSize'] : env.AI_MODEL_CONTEXT,
       version: typeof item['version'] === 'string' ? item['version'] : `${item['id']}@1`,
     })
   }
@@ -80,7 +87,9 @@ function createProvider(config: ModelConfig): LlmProvider {
     case 'fake':
       return new FakeProvider(config.id, config.version)
     case 'llamacpp':
-      return new LlamaCppProvider(config)
+      throw ApiError.modelUnavailable(
+        'Provider llamacpp nativo removido. Use LLM_PROVIDER=http com um llama.cpp server/vLLM/Ollama.',
+      )
     case 'http':
       // Sem LLM_HTTP_MODEL explícito, usa o id lógico do catálogo (vLLM/llama.cpp
       // normalmente servem o modelo com o mesmo nome).

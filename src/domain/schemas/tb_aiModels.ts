@@ -9,9 +9,7 @@ const tb_aiModels = mongoose.model(
   new Schema(
     {
       modelId: { type: String, required: true, unique: true },
-      provider: { type: String, enum: ['fake', 'llamacpp', 'http'], required: true },
-      path: { type: String, default: '' },
-      contextSize: { type: Number, default: 2048 },
+      provider: { type: String, enum: ['fake', 'http'], required: true },
       version: { type: String, default: '' },
       status: { type: String, enum: ['unloaded', 'loading', 'loaded', 'error'], default: 'unloaded' },
       loadedAt: { type: Date, default: null },

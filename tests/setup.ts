@@ -18,7 +18,6 @@ process.env['LLM_TEMPERATURE'] = '0'
 
 process.env['AI_MODEL_ID'] = 'fake-adjudicator'
 process.env['AI_MODEL_VERSION'] = 'fake@test'
-process.env['AI_MODEL_PATH'] = 'src/LLMS/does-not-exist.gguf'
 process.env['AI_MODELS_JSON'] = ''
 process.env['PACK_VERSION'] = '1'
 process.env['PROMPT_VERSION'] = '1'

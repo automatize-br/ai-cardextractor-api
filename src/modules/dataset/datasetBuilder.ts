@@ -1,5 +1,5 @@
 import { buildUserPrompt, SYSTEM_PROMPT } from '../../providers/llm/prompt.ts'
-import { letterFor } from '../../providers/llm/grammar.ts'
+import { letterFor } from '../../providers/llm/candidateRef.ts'
 import { ApiError } from '../../exceptions/ApiError.ts'
 import type {
   AdjudicationCard,

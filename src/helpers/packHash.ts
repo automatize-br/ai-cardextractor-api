@@ -22,3 +22,17 @@ export function stableStringify(value: unknown): string {
 export function computePackHash(value: unknown): string {
   return createHash('sha256').update(stableStringify(value)).digest('hex')
 }
+
+/**
+ * Hash canônico genérico (perfil, prompt, schema, cacheKey).
+ *
+ * `stableStringify` ordena apenas chaves de objeto; arrays preservam a ordem,
+ * porque a ordem é semântica (ex.: lista de candidatos).
+ */
+export function computeHash(value: unknown): string {
+  return computePackHash(value)
+}
+
+export function shortHash(value: string, length = 12): string {
+  return value.slice(0, Math.max(1, length))
+}

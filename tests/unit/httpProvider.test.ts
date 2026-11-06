@@ -7,8 +7,6 @@ import type { CompletionInput, ModelConfig } from '../../src/types/llm.ts'
 const config: ModelConfig = {
   id: 'qwen-remote',
   provider: 'http',
-  path: '',
-  contextSize: 2048,
   version: 'qwen@remote',
 }
 
