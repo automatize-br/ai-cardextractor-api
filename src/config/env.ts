@@ -57,6 +57,25 @@ function readLlmProvider(): 'fake' | 'llamacpp' | 'http' {
   return value
 }
 
+export type ExtractorStateMode = 'central' | 'mongo'
+export type AiConfigSource = 'mongo' | 'central' | 'env'
+
+function readStateMode(): ExtractorStateMode {
+  const value = readString('EXTRACTOR_STATE_MODE', 'central').toLowerCase()
+  if (value !== 'central' && value !== 'mongo') {
+    throw new Error(`EXTRACTOR_STATE_MODE must be "central" or "mongo" — received "${value}"`)
+  }
+  return value
+}
+
+function readAiConfigSource(): AiConfigSource | 'auto' {
+  const value = readString('AI_CONFIG_SOURCE', 'auto').toLowerCase()
+  if (value !== 'auto' && value !== 'mongo' && value !== 'central' && value !== 'env') {
+    throw new Error(`AI_CONFIG_SOURCE must be "auto", "mongo", "central" or "env" — received "${value}"`)
+  }
+  return value
+}
+
 export const env = {
   PORT: readInt('PORT', 5555),
   // Bind local por padrao: o servico nao deve ficar exposto sem proxy/allowlist.
@@ -108,6 +127,62 @@ export const env = {
   AI_PROFILES_B64: readString('AI_PROFILES_B64'),
   VISION_VERSION: readString('VISION_VERSION'),
 
+  // Pool de extractors / extração por HTML.
+  EXTRACTOR_DNS: readString('EXTRACTOR_DNS'),
+  EXTRACTOR_KEY: readString('EXTRACTOR_KEY'),
+  EXTRACTOR_CONTROL_URL: readString('EXTRACTOR_CONTROL_URL'),
+  // `central` = heartbeat HTTP (legado). `mongo` = cada extractor grava o
+  // próprio estado direto em tb_aiExtractorInstances; a API só lê.
+  EXTRACTOR_STATE_MODE: readStateMode(),
+  EXTRACTOR_STATE_INTERVAL_MS: readInt('EXTRACTOR_STATE_INTERVAL_MS', 180_000),
+  // Heartbeat de liveness/lease: update PARCIAL (só lastHeartbeatAt/in-flight),
+  // independente do snapshot de métricas acima.
+  EXTRACTOR_STATE_HEARTBEAT_MS: readInt('EXTRACTOR_STATE_HEARTBEAT_MS', 20_000),
+  EXTRACTOR_WORKER_ID: readString('EXTRACTOR_WORKER_ID'),
+  // Arquivo persistente do workerId (uuid). Obrigatório quando STATE_MODE=mongo:
+  // env não é persistência e um id novo a cada boot órfã jobs/reservas.
+  EXTRACTOR_WORKER_ID_FILE: readString('EXTRACTOR_WORKER_ID_FILE', '.data/worker-id'),
+  EXTRACTOR_HOST: readString('EXTRACTOR_HOST'),
+  // O worker ainda NÃO embarca Chromium. Plataformas JS-only (Shopee) ficam
+  // fora da capability até a Etapa E decidir embedar browser.
+  WORKER_BROWSER_ENABLED: readBoolean('WORKER_BROWSER_ENABLED', false),
+  EXTRACTOR_SATURATION_THRESHOLD: readFloat('EXTRACTOR_SATURATION_THRESHOLD', 75),
+  EXTRACTOR_RESUME_THRESHOLD: readFloat('EXTRACTOR_RESUME_THRESHOLD', 60),
+  EXTRACTOR_VERSION: readString('EXTRACTOR_VERSION', 'dev'),
+  EXTRACTOR_CARD_TRIMMER_VERSION: readString('EXTRACTOR_CARD_TRIMMER_VERSION', 'trim@1'),
+  EXTRACTOR_CAPACITY: readInt('EXTRACTOR_CAPACITY', 1),
+  // Fila pull (bulk): desligada por default; requer CONTROL_URL + AI_INTERNAL_KEY.
+  EXTRACTOR_JOBS_ENABLED: readBoolean('EXTRACTOR_JOBS_ENABLED', false),
+  EXTRACTOR_JOBS_POLL_MS: readInt('EXTRACTOR_JOBS_POLL_MS', 2_000),
+  EXTRACTOR_JOBS_BATCH: readInt('EXTRACTOR_JOBS_BATCH', 1),
+  EXTRACTOR_JOBS_RENEW_MS: readInt('EXTRACTOR_JOBS_RENEW_MS', 20_000),
+  EXTRACTOR_CAPACITY_MAX: readInt('EXTRACTOR_CAPACITY_MAX', 2),
+  EXTRACTOR_HEARTBEAT_INTERVAL_MS: readInt('EXTRACTOR_HEARTBEAT_INTERVAL_MS', 30000),
+  EXTRACTOR_MAX_HTML_BYTES: readInt('EXTRACTOR_MAX_HTML_BYTES', 1_048_576),
+  EXTRACTOR_MAX_HTML_GZIP_BYTES: readInt('EXTRACTOR_MAX_HTML_GZIP_BYTES', 524_288),
+  EXTRACTOR_BODY_LIMIT_BYTES: readInt('EXTRACTOR_BODY_LIMIT_BYTES', 1_258_291),
+  EXTRACTOR_MAX_SCANNED: readInt('EXTRACTOR_MAX_SCANNED', 200),
+  EXTRACTOR_MAX_CARDS: readInt('EXTRACTOR_MAX_CARDS', 200),
+  EXTRACTOR_MAX_LLM_CARDS: readInt('EXTRACTOR_MAX_LLM_CARDS', 10),
+  EXTRACTOR_REQUEST_TIMEOUT_MS: readInt('EXTRACTOR_REQUEST_TIMEOUT_MS', 6000),
+  EXTRACTOR_PLATFORMS: readCsv('EXTRACTOR_PLATFORMS'),
+
+  // --- Coleta de páginas no próprio extractor (contrato v2) ---
+  // Proxy e unblocker ficam em CADA extractor: fetch/render/anti-bot é o
+  // trabalho pesado que justifica o pool.
+  SCRAPE_PROXY_URL: readString('SCRAPE_PROXY_URL'),
+  SCRAPE_UNBLOCKER_AUTH: readString('SCRAPE_UNBLOCKER_AUTH'),
+  SCRAPE_UNBLOCKER_URL: readString('SCRAPE_UNBLOCKER_URL'),
+  SCRAPE_UNBLOCKER_GEO: readString('SCRAPE_UNBLOCKER_GEO'),
+  SCRAPE_FETCH_TIMEOUT_MS: readInt('SCRAPE_FETCH_TIMEOUT_MS', 20_000),
+  SCRAPE_UNBLOCKER_TIMEOUT_MS: readInt('SCRAPE_UNBLOCKER_TIMEOUT_MS', 90_000),
+  SCRAPE_DEBUG_DUMP: readBoolean('SCRAPE_DEBUG_DUMP', false),
+  EXTRACTOR_SCRAPE_MAX_BYTES: readInt('EXTRACTOR_SCRAPE_MAX_BYTES', 6_000_000),
+  // Orçamento do contrato v2 (busca + extração + revalidação no extractor).
+  EXTRACTOR_SCRAPE_TIMEOUT_MS: readInt('EXTRACTOR_SCRAPE_TIMEOUT_MS', 120_000),
+  // Só para dev/teste local (http://127.0.0.1). Em produção permanece false.
+  EXTRACTOR_ALLOW_PRIVATE_SCRAPE: readBoolean('EXTRACTOR_ALLOW_PRIVATE_SCRAPE', false),
+
   // Versoes carimbadas em cada resposta/registro. Mudar o prompt ou o formato
   // do pack exige incrementar a env correspondente (nunca hardcode).
   PACK_VERSION: readString('PACK_VERSION', '1'),
@@ -118,6 +193,13 @@ export const env = {
   MONGO_PASSWORD: readString('MONGO_PASSWORD'),
   MONGO_URL: readString('MONGO_URL'),
   MONGO_ENVIRONMENT: readString('MONGO_ENVIRONMENT'),
+  // Mesma chave da API central: decifra `encryptedApiKey` de tb_aiextractorconfigs.
+  CREDENTIALS_ENC_KEY: readString('CREDENTIALS_ENC_KEY'),
+
+  // De onde a config de IA é lida: `mongo` (direto do painel), `central`
+  // (heartbeat/bootstrap) ou `env`. `auto` = mongo quando EXTRACTOR_STATE_MODE=mongo.
+  AI_CONFIG_SOURCE: readAiConfigSource(),
+  AI_CONFIG_POLL_MS: readInt('AI_CONFIG_POLL_MS', 30_000),
 
   LLM_PROVIDER: readLlmProvider(),
   LLM_TIMEOUT_MS: readInt('LLM_TIMEOUT_MS', 12000),
@@ -166,6 +248,20 @@ export function isDevelopmentEnvironment(): boolean {
 
 export function isProductionEnvironment(): boolean {
   return !isDevelopmentEnvironment()
+}
+
+/**
+ * Fonte efetiva da config de IA. `auto` segue o modo de estado: no pool
+ * direto (mongo) a config também vem do Mongo, sem passar pela API central.
+ */
+export function aiConfigSource(): AiConfigSource {
+  if (env.AI_CONFIG_SOURCE !== 'auto') return env.AI_CONFIG_SOURCE
+  return env.EXTRACTOR_STATE_MODE === 'mongo' ? 'mongo' : 'central'
+}
+
+/** O serviço precisa de conexão Mongo (persistência, estado ou config). */
+export function mongoRequired(): boolean {
+  return env.AI_PERSISTENCE === 'mongo' || env.EXTRACTOR_STATE_MODE === 'mongo' || aiConfigSource() === 'mongo'
 }
 
 export type AdjMode = 'off' | 'shadow' | 'assist' | 'on'

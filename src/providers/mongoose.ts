@@ -1,11 +1,15 @@
 import mongoose from 'mongoose'
-import { env } from '../config/env.ts'
+import { env, mongoRequired } from '../config/env.ts'
 
 // ============================================================================
 // Conexao Mongo OPCIONAL. O servico funciona em `AI_PERSISTENCE=memory`
-// (default), sem banco. Em `mongo`, a URI pode vir pronta (MONGO_URI) ou ser
-// composta no formato Atlas (MONGO_USER/MONGO_PASSWORD/MONGO_URL).
-// Nenhuma credencial e logada.
+// (default), sem banco. A conexao e aberta quando QUALQUER recurso precisa do
+// banco:
+//   - AI_PERSISTENCE=mongo  -> packs/uso da IA
+//   - EXTRACTOR_STATE_MODE=mongo -> estado do pool (cada extractor grava o seu)
+//   - AI_CONFIG_SOURCE=mongo -> config de IA lida de tb_aiextractorconfigs
+// A URI pode vir pronta (MONGO_URI) ou ser composta no formato Atlas
+// (MONGO_USER/MONGO_PASSWORD/MONGO_URL). Nenhuma credencial e logada.
 // ============================================================================
 
 export function buildMongoUri(): string | null {
@@ -17,11 +21,19 @@ export function buildMongoUri(): string | null {
   return `mongodb+srv://${user}:${password}@${env.MONGO_URL}/${database}?appName=Cluster0`
 }
 
+/** true quando alguma feature habilitada exige o banco. */
+export function mongoNeeded(): boolean {
+  return mongoRequired()
+}
+
 export async function connectDB(): Promise<boolean> {
-  if (env.AI_PERSISTENCE !== 'mongo') return false
+  if (!mongoRequired()) return false
   const uri = buildMongoUri()
   if (!uri) {
-    throw new Error('AI_PERSISTENCE=mongo requires MONGO_URI or MONGO_USER/MONGO_PASSWORD/MONGO_URL')
+    throw new Error(
+      'MongoDB é obrigatório (AI_PERSISTENCE=mongo ou EXTRACTOR_STATE_MODE=mongo ou AI_CONFIG_SOURCE=mongo) ' +
+        'mas MONGO_URI nem MONGO_USER/MONGO_PASSWORD/MONGO_URL foram informados',
+    )
   }
   await mongoose.connect(uri)
   console.log('[mongo] connected')

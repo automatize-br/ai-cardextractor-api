@@ -1,4 +1,4 @@
-import { env, isProductionEnvironment } from './env.ts'
+import { env, aiConfigSource, isProductionEnvironment } from './env.ts'
 import { listModels } from './models.ts'
 import { listProfiles } from './profiles.ts'
 
@@ -41,8 +41,11 @@ export function validateConfig(): void {
           'Use um endpoint OpenAI-compatible em AI_MODELS_JSON ou o provider http legado.',
       )
     }
-    if (env.LLM_PROVIDER === 'fake') {
-      throw new Error('LLM_PROVIDER=fake não é permitido em produção')
+    // Com a config vinda do painel (mongo/central) o provider físico da IA é
+    // o configurado no admin, não o LLM_PROVIDER — que fica só como placeholder
+    // do catálogo. Sem painel (AI_CONFIG_SOURCE=env), `fake` continua proibido.
+    if (env.LLM_PROVIDER === 'fake' && aiConfigSource() === 'env') {
+      throw new Error('LLM_PROVIDER=fake não é permitido em produção quando AI_CONFIG_SOURCE=env')
     }
   }
 }

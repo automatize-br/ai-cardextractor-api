@@ -1,4 +1,6 @@
+import { randomUUID } from 'node:crypto'
 import { ApiError } from '../../exceptions/ApiError.ts'
+import { humanizeProviderError } from '../../helpers/providerErrorMessages.ts'
 import { modelApiKey } from '../../config/models.ts'
 import type { RegisteredModel } from '../../types/model.ts'
 import type { CompletionMetadata } from '../../types/llm.ts'
@@ -103,6 +105,7 @@ export class FakeCatalogProvider implements CatalogLlmProvider {
 
 export class OpenAICompatibleProvider implements CatalogLlmProvider {
   readonly model: RegisteredModel
+  private readonly opencodeSession = randomUUID()
 
   constructor(model: RegisteredModel) {
     this.model = model
@@ -153,18 +156,36 @@ export class OpenAICompatibleProvider implements CatalogLlmProvider {
       }
 
       const apiKey = modelApiKey(this.model)
+      let isOpenCode = false
+      try {
+        isOpenCode = /(^|\.)opencode\.ai$/i.test(new URL(this.model.baseUrl).hostname)
+      } catch {
+        isOpenCode = false
+      }
       const response = await fetch(`${this.model.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
           ...(apiKey !== '' ? { authorization: `Bearer ${apiKey}` } : {}),
+          // OpenCode Go exige uma sessão estável para roteamento/cache.
+          ...(isOpenCode ? { 'x-opencode-session': this.opencodeSession, 'user-agent': 'vupia-ai-extractor/1.0' } : {}),
         },
         body: JSON.stringify(body),
         signal: controller.signal,
       })
 
       if (!response.ok) {
-        throw ApiError.modelUnavailable(`HTTP provider responded ${response.status}`)
+        const detail = (await response.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 400)
+        throw new ApiError(
+          502,
+          'AI_PROVIDER_ERROR',
+          humanizeProviderError(response.status, detail, {
+            provider: this.model.provider,
+            model: this.model.model,
+            baseUrl: this.model.baseUrl,
+          }),
+          { providerStatus: response.status, providerDetail: detail },
+        )
       }
 
       const payload = (await response.json()) as ChatCompletionResponse

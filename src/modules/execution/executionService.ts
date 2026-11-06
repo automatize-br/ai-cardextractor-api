@@ -7,6 +7,7 @@ import { getDefaultProfile, getProfile } from '../../config/profiles.ts'
 import { validateJson } from '../../config/schema.ts'
 import { ApiError } from '../../exceptions/ApiError.ts'
 import { getCatalogProvider } from '../../providers/llm/catalogProvider.ts'
+import { getRuntimeAiConfig, runtimeAiEnabled } from '../aiConfig/runtimeConfig.ts'
 import type { ExecutionMode, ExecutionRequest, ExecutionResult } from '../../types/execution.ts'
 import { buildHeuristicOutput } from './heuristicFallback.ts'
 import { buildPrompt } from './promptBuilder.ts'
@@ -168,7 +169,8 @@ export default class ExecutionService {
     const model = getModel(requestedModel)
     if (!model) throw ApiError.profileMisconfigured(`Model "${requestedModel}" not found`)
 
-    const mode = request.options?.mode ?? getMode()
+    const aiRuntime = runtimeAiEnabled() ? getRuntimeAiConfig() : null
+    const mode = aiRuntime?.mode ?? request.options?.mode ?? getMode()
     if (mode === 'off') {
       const heuristic = heuristicResult(
         registered,
@@ -185,8 +187,8 @@ export default class ExecutionService {
 
     const prompt = buildPrompt(registered.profile, request.input)
     const maxTokens =
-      registered.profile.model.maxTokens ?? Math.min(env.AI_MAX_OUTPUT_TOKENS, model.maxOutput)
-    const timeoutMs = registered.profile.model.timeoutMs ?? env.AI_TIMEOUT_MS
+      aiRuntime?.maxTokens ?? registered.profile.model.maxTokens ?? Math.min(env.AI_MAX_OUTPUT_TOKENS, model.maxOutput)
+    const timeoutMs = aiRuntime?.timeoutMs ?? registered.profile.model.timeoutMs ?? env.AI_TIMEOUT_MS
     const batchSize = registered.profile.model.batchSize ?? env.AI_BATCH_SIZE
     const promptCacheKey = `${registered.profile.id}:${registered.promptHash.slice(0, 16)}:${model.modelHash.slice(0, 16)}`
 
@@ -218,7 +220,7 @@ export default class ExecutionService {
           user: prompt.user,
           outputSchema: registered.profile.output.schema,
           maxTokens,
-          temperature: registered.profile.model.temperature,
+          temperature: aiRuntime?.temperature ?? registered.profile.model.temperature,
           topP: env.AI_TOP_P,
           timeoutMs,
           signal: runtime.signal ?? AbortSignal.timeout(timeoutMs),

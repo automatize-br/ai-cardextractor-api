@@ -18,3 +18,9 @@ training/out/
 # Python (treino F6)
 __pycache__/
 *.pyc
+
+# dumps de diagnóstico (SCRAPE_DEBUG_DUMP)
+/tmp/
+
+# identidade local do worker (uuid persistido)
+.data/

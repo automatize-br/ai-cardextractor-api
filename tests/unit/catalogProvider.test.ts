@@ -94,6 +94,6 @@ test('HTTP != 2xx vira MODEL_UNAVAILABLE', async () => {
         timeoutMs: 1000,
         signal: null,
       }),
-    /HTTP provider responded 500/,
+    /provider está indisponível agora \(HTTP 500\)/,
   )
 })
