@@ -57,8 +57,7 @@ no modelo da Shopee (Open API de afiliados).
 
 ## Rollout (ordem obrigatória)
 
-1. Deploy do worker (VPS `api-scrapping.vupia.com.br`): `.env` com
-   `EXTRACTOR_PLATFORMS=amazon,mercadolivre,aliexpress,shein,temu,tiktokshop,magalu,netshoes,casasbahia,pontofrio,americanas,kabum,centauro,renner,riachuelo,dafiti,zattini,boticario`
+1. Deploy do worker (VPS `api-scrapping.vupia.com.br`): `.env` com   `EXTRACTOR_PLATFORMS=amazon,mercadolivre,aliexpress,shein,temu,tiktokshop,magalu,netshoes,casasbahia,pontofrio,americanas,kabum,centauro,renner,riachuelo,dafiti,zattini,boticario`
    (sem `shopee`: vai pela API oficial). Confirmar no admin: Oracle online com as capabilities.
 2. Deploy da API (`AI_EXTRACTOR_MODE=pool`, `AI_EXTRACTOR_BULK_MIN_FLEET=1`;
    bulk pull exige `AI_EXTRACTOR_QUEUE_ENABLED=true`, senão a Etapa E usa o contrato v2 direto).
@@ -74,3 +73,25 @@ no modelo da Shopee (Open API de afiliados).
   `appId`, não do IP) por custo de latência e complexidade — ver análise em conversa de 2026-11-07.
 - **Cache compartilhado para scrape**: sem identidade de app como nas APIs oficiais; cada HTML é
   por sessão/URL — single-flight + cache por usuário continuam valendo no pool.
+
+## Validação com buscas reais (2026-11-07)
+
+Pipeline real do worker (unblocker Decodo + extração) contra as páginas das lojas:
+
+| Loja | Resultado | Observação |
+| --- | --- | --- |
+| Magalu | 50/50 ao vivo | parsing por `data-testid` |
+| Shein | 20/20 (dump) | JSON-LD `ItemList/itemListElement` + âncora `-p-` |
+| Renner | 48/48 | extração direta |
+| AliExpress | 60/60 | controle (já funcionava) |
+| Kabum | 10/10 via JSON-LD | permalink vinha só em `offers.url` |
+| Netshoes | 30/30 | exige `device_type: mobile_android` (desktop dá 403 mesmo com proxy) |
+| Temu | 0 (shell JS) | testados `wait`, `scroll_to_bottom`, `fetch_resource`: sem produtos no HTML |
+| Americanas | 0 (shell JS) | `wait`/`scroll_to_bottom` não hidratam |
+| Casas Bahia | 0 (shell JS) | desktop, mobile e geo BR testados |
+| TikTok | template `shop.tiktok.com/search` 404 | URL atual: `shop.tiktok.com/br?q=` (path com região); conteúdo é shell JS; template `tiktok_shop_search` da Decodo responde `failed 613` (restrição de plano) |
+
+Conclusões: (1) `browser_actions` (`wait`/`scroll`/`fetch_resource`) da Decodo **não** hidratam os
+shells testados — shell JS só sai com navegador de verdade (Etapa E do worker). (2) Proxy próprio
+**não** resolve Netshoes (403 com e sem proxy, desktop e mobile) — só o unblocker mobile. (3) TikTok
+depende de URL válida (tarefa do produto) + render ou template liberado.
