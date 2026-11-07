@@ -178,3 +178,11 @@ test('serviço remoto: sem ofertas e sem falha = no_cards', async () => {
   assert.equal(result.quality, 'no_cards')
   assert.equal(result.reason, 'NO_CARDS_EXTRACTED')
 })
+
+test('device do unblocker: netshoes usa mobile (desktop leva 403)', async () => {
+  const { unblockerDeviceType } = await import('../../src/modules/remoteExtraction/pageFetcher.ts')
+  assert.equal(unblockerDeviceType('netshoes'), 'mobile_android')
+  assert.equal(unblockerDeviceType('NETSHOES'), 'mobile_android')
+  assert.equal(unblockerDeviceType('temu'), 'desktop')
+  assert.equal(unblockerDeviceType('amazon'), 'desktop')
+})

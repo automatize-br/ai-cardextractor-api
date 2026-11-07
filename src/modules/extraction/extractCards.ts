@@ -112,8 +112,7 @@ interface PriceCandidate {
 }
 
 /** Usa o PRIMEIRO seletor que casar (evita somar fração + preço completo). */
-function priceCandidatesOf(card: HTMLElement, selectors: readonly string[]): PriceCandidate[] {
-  // Mercado Livre separa fração e centavos em spans (o textContent perde a
+function priceCandidatesOf(card: HTMLElement, selectors: readonly string[]): PriceCandidate[] {  // Mercado Livre separa fração e centavos em spans (o textContent perde a
   // vírgula: "R$19990"). Reconstrói "199,90" para o parse, mas guarda o texto
   // VERBATIM do elemento como evidência.
   const amountNodes = card.querySelectorAll('.andes-money-amount')
@@ -142,7 +141,43 @@ function priceCandidatesOf(card: HTMLElement, selectors: readonly string[]): Pri
     }
     if (out.length > 0) return out
   }
-  return []
+  // Último recurso (paridade com o extrator legado): varre o texto do card por
+  // "R$ ..." ignorando contexto de parcela ("em atéNx", "X de/sem") — o menor
+  // vira preço atual e o maior, original. Sem "R$", tenta folhas com valor BR
+  // puro ("39,90") exigindo 2 decimais (evita confundir rating "4.7").
+  return priceCandidatesFromText(card)
+}
+
+/**
+ * Fallback por texto: todos os "R$ ..." do card → cada um vira candidato (o
+ * pipeline escolhe o MENOR como atual e o MAIOR como original). Ignora valores
+ * em contexto de parcela ("em até 10x", "10x de/sem", cupom/desconto/a partir).
+ * Sem "R$", tenta folhas com valor BR puro exigindo 2 decimais.
+ */
+function priceCandidatesFromText(card: HTMLElement): PriceCandidate[] {
+  const text = textOf(card).replace(/ /g, ' ')
+  const out: PriceCandidate[] = []
+  const regex = /(?:R\$|US\$|\$)\s*[\d.,]{1,14}/gi
+  let match: RegExpExecArray | null
+  while ((match = regex.exec(text)) !== null) {
+    const before = text.slice(Math.max(0, match.index - 28), match.index).toLowerCase()
+    const after = text.slice(match.index + match[0].length, match.index + match[0].length + 10).toLowerCase()
+    if (/(?:em at[eé]|parcel|vezes|juros|a partir|cupom|desconto)/.test(before)) continue
+    if (/\d\s*x\s*(?:de|sem)\s*$/.test(before)) continue
+    if (/^\s*x\b|^\s*(?:de|sem)\b/.test(after)) continue
+    const cents = parsePriceToCents(match[0])
+    if (cents !== null) out.push({ text: match[0], quote: match[0], cents })
+  }
+  if (out.length > 0) return out
+  // Folha com APENAS um valor monetário BR ("39,90") — exige 2 decimais.
+  for (const element of card.querySelectorAll('*')) {
+    if (element.querySelector('*') !== null) continue
+    const leaf = textOf(element)
+    if (!/^\s*[\d.]*\d+,\d{2}\s*$/.test(leaf)) continue
+    const cents = parsePriceToCents(leaf)
+    if (cents !== null) out.push({ text: leaf, quote: leaf, cents })
+  }
+  return out
 }
 
 function titleOf(card: HTMLElement, anchor: HTMLElement, selectors: readonly string[]): string | null {
@@ -378,7 +413,8 @@ function cardsFromJsonLd(html: string, base: string, marketplace: string): RawCa
           : 'BRL'
         const priceText = typeof priceRaw === 'number' ? String(priceRaw) : typeof priceRaw === 'string' ? priceRaw : ''
         const priceCents = parsePriceToCents(priceText)
-        const permalink = absoluteUrl(url, base)
+        // Algumas lojas (ex.: KaBuM!) põem a URL só na Offer, não no Product.
+        const permalink = absoluteUrl(url || String((offer as Record<string, unknown>)['url'] ?? ''), base)
         const imageUrl = absoluteUrl(imageRaw, base)
         if (!title || title.length < 8 || priceCents === null || !permalink || !imageUrl) continue
         cards.push({

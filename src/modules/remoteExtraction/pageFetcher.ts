@@ -132,6 +132,13 @@ function parseUnblockerBody(text: string): string | null {
   }
 }
 
+/** Device por marketplace: a Netshoes bloqueia o desktop (403) mas responde
+ * ao mobile (validado em 2026-11-07: 30/30 ofertas). Demais lojas usam desktop. */
+export function unblockerDeviceType(marketplace: string): string {
+  if (marketplace.toLowerCase() === 'netshoes') return 'mobile_android'
+  return 'desktop'
+}
+
 async function fetchWithUnblocker(target: string, marketplace: string): Promise<string | null> {
   const config = unblockerConfig()
   if (!config) return null
@@ -146,7 +153,7 @@ async function fetchWithUnblocker(target: string, marketplace: string): Promise<
       body: JSON.stringify({
         url: target,
         headless: 'html',
-        device_type: 'desktop',
+        device_type: unblockerDeviceType(marketplace),
         // AliExpress é global: sem geo o preço vem em USD/CAD/MXN. Só enviamos
         // geo para ele; os domínios .com.br recusariam o parâmetro.
         ...(config.geo !== '' && marketplace === 'aliexpress' ? { geo: config.geo } : {}),
