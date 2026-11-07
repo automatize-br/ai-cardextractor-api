@@ -90,7 +90,7 @@ Pipeline real do worker (unblocker Decodo + extração) contra as páginas das l
 | Temu | 0 (shell JS) | testados `wait`, `scroll_to_bottom`, `fetch_resource`: sem produtos no HTML |
 | Americanas | 0 (shell JS) | `wait`/`scroll_to_bottom` não hidratam |
 | Casas Bahia | 0 (shell JS) | desktop, mobile e geo BR testados |
-| TikTok | template `shop.tiktok.com/search` 404 | URL atual: `shop.tiktok.com/br?q=` (path com região); conteúdo é shell JS; template `tiktok_shop_search` da Decodo responde `failed 613` (restrição de plano) |
+| TikTok | template `shop.tiktok.com/search` 404 | URL correta: `shop.tiktok.com/br?q=` — mas o conteúdo é shell JS. Resolvido pela via oficial: Affiliate Creator API implementada na API (`docs/INTEGRACAO_TIKTOKSHOP.md` — busca `shop_products` com OAuth do criador + refresh automático). Sem credenciais, cai no pool (shell → `blocked` honesto) |
 
 Conclusões: (1) `browser_actions` (`wait`/`scroll`/`fetch_resource`) da Decodo **não** hidratam os
 shells testados — shell JS só sai com navegador de verdade (Etapa E do worker). (2) Proxy próprio
