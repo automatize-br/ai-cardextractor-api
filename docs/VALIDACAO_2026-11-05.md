@@ -149,3 +149,5 @@ Logs do extractor:
 - `keyEnv` do cadastro é legado do heartbeat HMAC; a autenticação atual é a chave única `AI_INTERNAL_KEY`.
 - Reservas usam `(dns, slot)` com `workerId` gravado; migração para `workerId` puro segue pendente.
 - O upsert de estado agora é por `workerId` (DNS é metadado; troca de DNS não duplica linha).
+- Onboarding da VPS de serviço (colisão de DNS, control URL, 429 do unblocker e teste forçado pelo HUB):
+  `docs/TROUBLESHOOTING_VPS_2026-11-06.md`.

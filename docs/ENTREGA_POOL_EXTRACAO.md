@@ -186,3 +186,5 @@ drain/resume, alertas, mapeamento do pull.
 - Control plane usa **uma chave compartilhada** `AI_INTERNAL_KEY` (decisão de produto); `keyEnv` do cadastro é legado do heartbeat HMAC.
 - Healthcheck é cacheado (10 s); não adiciona duas requisições por busca.
 - Benchmark/carga/rollout reais ainda não executados (dependem de VPS/frota).
+- Onboarding da primeira VPS de serviço e problemas encontrados:
+  `docs/TROUBLESHOOTING_VPS_2026-11-06.md`.
