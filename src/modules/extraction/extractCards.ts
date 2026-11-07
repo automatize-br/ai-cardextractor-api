@@ -209,7 +209,7 @@ const DOM_PROFILES: Record<string, PlatformDomProfile> = {
     imageSelectors: ['img.multi--image--1gX1N3y', 'img'],
   },
   shein: {
-    anchorSelectors: ['a[href*="/p-"]'],
+    anchorSelectors: ['a[href*="-p-"]'],
     titleSelectors: ['.product-title', '.goods-title', 'h3'],
     priceSelectors: ['.product-price', '.goods-price', '.price'],
     imageSelectors: ['img.product-image', 'img'],
@@ -231,74 +231,74 @@ const DOM_PROFILES: Record<string, PlatformDomProfile> = {
   // /product/ ou /item/ — heurística estrutural decide o resto.
   magalu: {
     anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
-    titleSelectors: ['h2', 'h3', '[class*="title"]', '[class*="name"]'],
-    priceSelectors: ['[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    titleSelectors: ['[data-testid*="title"]', 'h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[data-testid*="price"]', '[data-testid*="preco"]', '[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
     imageSelectors: ['img'],
   },
   netshoes: {
     anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
-    titleSelectors: ['h2', 'h3', '[class*="title"]', '[class*="name"]'],
-    priceSelectors: ['[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    titleSelectors: ['[data-testid*="title"]', 'h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[data-testid*="price"]', '[data-testid*="preco"]', '[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
     imageSelectors: ['img'],
   },
   casasbahia: {
     anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
-    titleSelectors: ['h2', 'h3', '[class*="title"]', '[class*="name"]'],
-    priceSelectors: ['[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    titleSelectors: ['[data-testid*="title"]', 'h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[data-testid*="price"]', '[data-testid*="preco"]', '[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
     imageSelectors: ['img'],
   },
   pontofrio: {
     anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
-    titleSelectors: ['h2', 'h3', '[class*="title"]', '[class*="name"]'],
-    priceSelectors: ['[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    titleSelectors: ['[data-testid*="title"]', 'h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[data-testid*="price"]', '[data-testid*="preco"]', '[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
     imageSelectors: ['img'],
   },
   americanas: {
     anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
-    titleSelectors: ['h2', 'h3', '[class*="title"]', '[class*="name"]'],
-    priceSelectors: ['[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    titleSelectors: ['[data-testid*="title"]', 'h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[data-testid*="price"]', '[data-testid*="preco"]', '[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
     imageSelectors: ['img'],
   },
   kabum: {
     anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
-    titleSelectors: ['h2', 'h3', '[class*="title"]', '[class*="name"]'],
-    priceSelectors: ['[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    titleSelectors: ['[data-testid*="title"]', 'h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[data-testid*="price"]', '[data-testid*="preco"]', '[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
     imageSelectors: ['img'],
   },
   centauro: {
     anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
-    titleSelectors: ['h2', 'h3', '[class*="title"]', '[class*="name"]'],
-    priceSelectors: ['[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    titleSelectors: ['[data-testid*="title"]', 'h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[data-testid*="price"]', '[data-testid*="preco"]', '[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
     imageSelectors: ['img'],
   },
   renner: {
     anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
-    titleSelectors: ['h2', 'h3', '[class*="title"]', '[class*="name"]'],
-    priceSelectors: ['[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    titleSelectors: ['[data-testid*="title"]', 'h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[data-testid*="price"]', '[data-testid*="preco"]', '[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
     imageSelectors: ['img'],
   },
   riachuelo: {
     anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
-    titleSelectors: ['h2', 'h3', '[class*="title"]', '[class*="name"]'],
-    priceSelectors: ['[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    titleSelectors: ['[data-testid*="title"]', 'h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[data-testid*="price"]', '[data-testid*="preco"]', '[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
     imageSelectors: ['img'],
   },
   dafiti: {
     anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
-    titleSelectors: ['h2', 'h3', '[class*="title"]', '[class*="name"]'],
-    priceSelectors: ['[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    titleSelectors: ['[data-testid*="title"]', 'h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[data-testid*="price"]', '[data-testid*="preco"]', '[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
     imageSelectors: ['img'],
   },
   zattini: {
     anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
-    titleSelectors: ['h2', 'h3', '[class*="title"]', '[class*="name"]'],
-    priceSelectors: ['[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    titleSelectors: ['[data-testid*="title"]', 'h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[data-testid*="price"]', '[data-testid*="preco"]', '[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
     imageSelectors: ['img'],
   },
   boticario: {
     anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
-    titleSelectors: ['h2', 'h3', '[class*="title"]', '[class*="name"]'],
-    priceSelectors: ['[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    titleSelectors: ['[data-testid*="title"]', 'h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[data-testid*="price"]', '[data-testid*="preco"]', '[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
     imageSelectors: ['img'],
   },
 }
@@ -347,6 +347,14 @@ function cardsFromJsonLd(html: string, base: string, marketplace: string): RawCa
       if (typeof node !== 'object' || node === null) continue
       const record = node as Record<string, unknown>
       if (Array.isArray(record['@graph'])) queue.push(...record['@graph'])
+      // Listas de produtos (ex.: Shein `ItemList/itemListElement`): o produto
+      // pode estar em `item` ou ser o próprio elemento.
+      if (Array.isArray(record['itemListElement'])) {
+        for (const element of record['itemListElement']) {
+          const item = (element as Record<string, unknown> | null)?.['item'] ?? element
+          queue.push(item)
+        }
+      }
       const type = record['@type']
       const types = Array.isArray(type) ? type : [type]
       if (!types.includes('Product')) continue

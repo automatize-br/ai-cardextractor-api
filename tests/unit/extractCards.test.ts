@@ -157,3 +157,26 @@ test('lojas BR usam heurística: âncora /p/ vira card (Magalu)', () => {
   assert.equal(cards[0]?.title, 'Fone Bluetooth TWS')
   assert.equal(cards[0]?.priceCents, 14990)
 })
+
+const sheinJsonLdHtml = `<!doctype html><html><body>
+<script type="application/ld+json" data-sheinprivacy="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"ItemList","numberOfItems":1,"itemListElement":[{"@type":"ListItem","position":1,"item":{"@type":"Product","name":"Fone De Ouvido Sem Fio TWS Com Tela LED","url":"https://br.shein.com/-Fone-Tws-p-53459302.html","image":"https://img.ltwebstatic.com/x.png","sku":"53459302","offers":{"@type":"Offer","url":"/-Fone-Tws-p-53459302.html","price":"17.42","priceCurrency":"BRL"}}}]}]}</script>
+</body></html>`
+
+test('extrai card Shein de JSON-LD ItemList/itemListElement', () => {
+  const { cards } = extractRawCards(sheinJsonLdHtml, 'shein', 'https://br.shein.com/pdsearch/fone/', 200)
+  assert.equal(cards.length, 1)
+  assert.equal(cards[0]?.externalProductId, '53459302')
+  assert.equal(cards[0]?.priceCents, 1742)
+  assert.equal(cards[0]?.currency, 'BRL')
+})
+
+const magaluTestIdHtml = `<!doctype html><html><body>
+<div><a href="/fone-bluetooth-tws/p/abc123/ea/fobt/"><div data-testid="product-card-media-content"><img src="https://a-static.mlcdn.com.br/x.jpeg" /></div><div data-testid="card-content"><h3 data-testid="product-card-title">Fone Bluetooth TWS Pro</h3><p data-testid="product-card-price-final"><span>Preço R$ 89,90</span></p></div></a></div>
+</body></html>`
+
+test('extrai card Magalu por data-testid (classes utilitárias sem "price")', () => {
+  const { cards } = extractRawCards(magaluTestIdHtml, 'magalu', 'https://www.magazineluiza.com.br/busca/fone/', 200)
+  assert.equal(cards.length, 1)
+  assert.equal(cards[0]?.title, 'Fone Bluetooth TWS Pro')
+  assert.equal(cards[0]?.priceCents, 8990)
+})
