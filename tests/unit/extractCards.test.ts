@@ -126,3 +126,34 @@ window._dida_config_._init_data_= { data: {"itemList":{"content":[
   assert.equal(cards[0]?.permalink, 'https://www.aliexpress.com/item/1005001234567890.html')
   assert.equal(cards[0]?.imageUrl, 'https://ae-pic-a1.aliexpress-media.com/kf/a.jpg')
 })
+
+const temuHtml = `<!doctype html><html><body>
+<div class="goods-2xIL4">
+  <a href="https://www.temu.com/fone-bluetooth-g-60109999999999.html"><h3>Fone Bluetooth TWS Pro</h3></a>
+  <img class="imgWrap-1cwSB" src="https://img.kwcdn.com/product/x.jpg" />
+  <span class="goodsPrice-abc">R$ 89,90</span>
+</div>
+</body></html>`
+
+test('extrai card Temu por DOM (âncora -g-<id>)', () => {
+  const { cards } = extractRawCards(temuHtml, 'temu', 'https://www.temu.com/search_result.html?search_key=fone', 200)
+  assert.equal(cards.length, 1)
+  assert.equal(cards[0]?.externalProductId, '60109999999999')
+  assert.equal(cards[0]?.title, 'Fone Bluetooth TWS Pro')
+  assert.equal(cards[0]?.priceCents, 8990)
+  assert.equal(cards[0]?.currency, 'BRL')
+})
+
+test('lojas BR usam heurística: âncora /p/ vira card (Magalu)', () => {
+  const html = `<!doctype html><html><body>
+<div data-testid="product-card">
+  <a href="https://www.magazineluiza.com.br/fone-bluetooth/p/ab1234/"><h3>Fone Bluetooth TWS</h3></a>
+  <img src="https://a-static.mlcdn.com.br/x.jpg" />
+  <span class="price-template">R$ 149,90</span>
+</div>
+</body></html>`
+  const { cards } = extractRawCards(html, 'magalu', 'https://www.magazineluiza.com.br/busca/fone/', 200)
+  assert.equal(cards.length, 1)
+  assert.equal(cards[0]?.title, 'Fone Bluetooth TWS')
+  assert.equal(cards[0]?.priceCents, 14990)
+})

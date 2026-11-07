@@ -53,6 +53,7 @@ function externalIdFromUrl(raw: string, marketplace: string): string | null {
     shopee: [/-i\.(\d+)\.(\d+)/i, /\/product\/(\d+)/i],
     aliexpress: [/\/item\/(\d+)/i],
     shein: [/\/p-(\d+)/i],
+    temu: [/(?:[-/]g-|goods_id=)(\d+)/i],
   }
   for (const pattern of patterns[marketplace] ?? []) {
     const match = pattern.exec(raw)
@@ -212,6 +213,93 @@ const DOM_PROFILES: Record<string, PlatformDomProfile> = {
     titleSelectors: ['.product-title', '.goods-title', 'h3'],
     priceSelectors: ['.product-price', '.goods-price', '.price'],
     imageSelectors: ['img.product-image', 'img'],
+  },
+  // Temu: classes hasheadas; âncora pelo id (`-g-<id>` ou `goods_id=<id>`).
+  temu: {
+    anchorSelectors: ['a[href*="-g-"]', 'a[href*="goods_id"]'],
+    titleSelectors: ['h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[class*="goodsPrice"]', '[class*="price-"]', '[class*="marketPrice"]'],
+    imageSelectors: ['[class*="imgWrap"] img', 'img'],
+  },
+  tiktokshop: {
+    anchorSelectors: ['a[href*="/product/"]', 'a[href*="/view/product"]'],
+    titleSelectors: ['h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[class*="price"]', '[class*="amount"]'],
+    imageSelectors: ['img'],
+  },
+  // Lojas BR (Magalu, Awin, etc.): link de produto contém /p/, /produto/,
+  // /product/ ou /item/ — heurística estrutural decide o resto.
+  magalu: {
+    anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
+    titleSelectors: ['h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    imageSelectors: ['img'],
+  },
+  netshoes: {
+    anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
+    titleSelectors: ['h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    imageSelectors: ['img'],
+  },
+  casasbahia: {
+    anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
+    titleSelectors: ['h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    imageSelectors: ['img'],
+  },
+  pontofrio: {
+    anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
+    titleSelectors: ['h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    imageSelectors: ['img'],
+  },
+  americanas: {
+    anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
+    titleSelectors: ['h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    imageSelectors: ['img'],
+  },
+  kabum: {
+    anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
+    titleSelectors: ['h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    imageSelectors: ['img'],
+  },
+  centauro: {
+    anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
+    titleSelectors: ['h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    imageSelectors: ['img'],
+  },
+  renner: {
+    anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
+    titleSelectors: ['h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    imageSelectors: ['img'],
+  },
+  riachuelo: {
+    anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
+    titleSelectors: ['h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    imageSelectors: ['img'],
+  },
+  dafiti: {
+    anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
+    titleSelectors: ['h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    imageSelectors: ['img'],
+  },
+  zattini: {
+    anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
+    titleSelectors: ['h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    imageSelectors: ['img'],
+  },
+  boticario: {
+    anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
+    titleSelectors: ['h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    imageSelectors: ['img'],
   },
 }
 
