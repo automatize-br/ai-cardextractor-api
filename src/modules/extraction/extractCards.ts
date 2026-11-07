@@ -54,6 +54,7 @@ function externalIdFromUrl(raw: string, marketplace: string): string | null {
     aliexpress: [/\/item\/(\d+)/i],
     shein: [/\/p-(\d+)/i],
     temu: [/(?:[-/]g-|goods_id=)(\d+)/i],
+    dafiti: [/-(\d+)\.html/i],
   }
   for (const pattern of patterns[marketplace] ?? []) {
     const match = pattern.exec(raw)
@@ -215,6 +216,10 @@ interface PlatformDomProfile {
   titleSelectors: string[]
   priceSelectors: string[]
   imageSelectors: string[]
+  /** Preço "de" (riscado). Quando presente, seus valores entram no bolo de
+   * candidatos — o pipeline escolhe o MENOR como atual e o MAIOR (se maior)
+   * como original. */
+  originalPriceSelectors?: string[]
 }
 
 const DOM_PROFILES: Record<string, PlatformDomProfile> = {
@@ -319,9 +324,10 @@ const DOM_PROFILES: Record<string, PlatformDomProfile> = {
     imageSelectors: ['img'],
   },
   dafiti: {
-    anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
-    titleSelectors: ['[data-testid*="title"]', 'h2', 'h3', '[class*="title"]', '[class*="name"]'],
-    priceSelectors: ['[data-testid*="price"]', '[data-testid*="preco"]', '[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    anchorSelectors: ['a.product-box-link'],
+    titleSelectors: ['.product-box-title', '[data-testid*="title"]', 'h2', 'h3'],
+    priceSelectors: ['.product-box-price-to', '.product-box-price', '[data-testid*="price"]', '[class*="price"]', '[class*="preco"]'],
+    originalPriceSelectors: ['.product-box-price-from'],
     imageSelectors: ['img'],
   },
   zattini: {
@@ -573,6 +579,15 @@ function cardsFromDom(html: string, base: string, marketplace: string, maxScanne
       const card = closestCard(anchor)
       const title = titleOf(card, anchor, profile.titleSelectors)
       const priceCandidates = priceCandidatesOf(card, profile.priceSelectors)
+      if (profile.originalPriceSelectors !== undefined) {
+        for (const selector of profile.originalPriceSelectors) {
+          for (const element of card.querySelectorAll(selector)) {
+            const text = textOf(element)
+            const cents = parsePriceToCents(text)
+            if (text !== '' && cents !== null) priceCandidates.push({ text, quote: text, cents })
+          }
+        }
+      }
       if (!title || priceCandidates.length === 0) continue
       const currentPrice = [...priceCandidates].sort((left, right) => left.cents - right.cents)[0]
       if (!currentPrice) continue

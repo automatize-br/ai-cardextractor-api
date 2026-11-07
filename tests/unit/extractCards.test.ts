@@ -180,3 +180,15 @@ test('extrai card Magalu por data-testid (classes utilitárias sem "price")', ()
   assert.equal(cards[0]?.title, 'Fone Bluetooth TWS Pro')
   assert.equal(cards[0]?.priceCents, 8990)
 })
+
+const dafitiHtml = `<!doctype html><html><body>
+<div class="product-box" data-sku="SA232SHF85XMS"><div class="product-box-image"><a href="https://www.dafiti.com.br/Tenis-Feminino-Santa-Lolla-15148814.html" class="product-box-link"><img src="https://static.dafiti.com.br/x.jpg" /></a></div><div class="product-box-title">Tênis Feminino Santa Lolla Casual</div><div class="product-box-price-to">R$ 186,99</div><div class="product-box-price-from">R$ 249,90</div></div>
+</body></html>`
+
+test('extrai card Dafiti (box dedicado, preço de/por)', () => {
+  const { cards } = extractRawCards(dafitiHtml, 'dafiti', 'https://www.dafiti.com.br/catalog/?q=fone', 200)
+  assert.equal(cards.length, 1)
+  assert.equal(cards[0]?.externalProductId, '15148814')
+  assert.equal(cards[0]?.priceCents, 18699)
+  assert.equal(cards[0]?.originalPriceCents, 24990)
+})
