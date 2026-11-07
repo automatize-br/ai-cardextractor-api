@@ -17,7 +17,27 @@ export function coreMajorOf(coreVersion: string): number {
 
 export const CORE_MAJOR = coreMajorOf(CORE_VERSION)
 
-export const SUPPORTED_PLATFORMS = ['amazon', 'mercadolivre', 'shopee', 'aliexpress', 'shein'] as const
+export const SUPPORTED_PLATFORMS = [
+  'amazon',
+  'mercadolivre',
+  'shopee',
+  'aliexpress',
+  'shein',
+  'temu',
+  'tiktokshop',
+  'magalu',
+  'netshoes',
+  'casasbahia',
+  'pontofrio',
+  'americanas',
+  'kabum',
+  'centauro',
+  'renner',
+  'riachuelo',
+  'dafiti',
+  'zattini',
+  'boticario',
+] as const
 
 // Plataformas que só funcionam com Chromium. O worker não embarca browser
 // (Etapa E decide), então elas ficam fora da capability publicada.
