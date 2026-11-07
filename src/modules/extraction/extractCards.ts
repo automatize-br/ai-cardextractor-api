@@ -53,6 +53,8 @@ function externalIdFromUrl(raw: string, marketplace: string): string | null {
     shopee: [/-i\.(\d+)\.(\d+)/i, /\/product\/(\d+)/i],
     aliexpress: [/\/item\/(\d+)/i],
     shein: [/\/p-(\d+)/i],
+    temu: [/(?:[-/]g-|goods_id=)(\d+)/i],
+    dafiti: [/-(\d+)\.html/i],
   }
   for (const pattern of patterns[marketplace] ?? []) {
     const match = pattern.exec(raw)
@@ -111,8 +113,7 @@ interface PriceCandidate {
 }
 
 /** Usa o PRIMEIRO seletor que casar (evita somar fração + preço completo). */
-function priceCandidatesOf(card: HTMLElement, selectors: readonly string[]): PriceCandidate[] {
-  // Mercado Livre separa fração e centavos em spans (o textContent perde a
+function priceCandidatesOf(card: HTMLElement, selectors: readonly string[]): PriceCandidate[] {  // Mercado Livre separa fração e centavos em spans (o textContent perde a
   // vírgula: "R$19990"). Reconstrói "199,90" para o parse, mas guarda o texto
   // VERBATIM do elemento como evidência.
   const amountNodes = card.querySelectorAll('.andes-money-amount')
@@ -141,7 +142,43 @@ function priceCandidatesOf(card: HTMLElement, selectors: readonly string[]): Pri
     }
     if (out.length > 0) return out
   }
-  return []
+  // Último recurso (paridade com o extrator legado): varre o texto do card por
+  // "R$ ..." ignorando contexto de parcela ("em atéNx", "X de/sem") — o menor
+  // vira preço atual e o maior, original. Sem "R$", tenta folhas com valor BR
+  // puro ("39,90") exigindo 2 decimais (evita confundir rating "4.7").
+  return priceCandidatesFromText(card)
+}
+
+/**
+ * Fallback por texto: todos os "R$ ..." do card → cada um vira candidato (o
+ * pipeline escolhe o MENOR como atual e o MAIOR como original). Ignora valores
+ * em contexto de parcela ("em até 10x", "10x de/sem", cupom/desconto/a partir).
+ * Sem "R$", tenta folhas com valor BR puro exigindo 2 decimais.
+ */
+function priceCandidatesFromText(card: HTMLElement): PriceCandidate[] {
+  const text = textOf(card).replace(/ /g, ' ')
+  const out: PriceCandidate[] = []
+  const regex = /(?:R\$|US\$|\$)\s*[\d.,]{1,14}/gi
+  let match: RegExpExecArray | null
+  while ((match = regex.exec(text)) !== null) {
+    const before = text.slice(Math.max(0, match.index - 28), match.index).toLowerCase()
+    const after = text.slice(match.index + match[0].length, match.index + match[0].length + 10).toLowerCase()
+    if (/(?:em at[eé]|parcel|vezes|juros|a partir|cupom|desconto)/.test(before)) continue
+    if (/\d\s*x\s*(?:de|sem)\s*$/.test(before)) continue
+    if (/^\s*x\b|^\s*(?:de|sem)\b/.test(after)) continue
+    const cents = parsePriceToCents(match[0])
+    if (cents !== null) out.push({ text: match[0], quote: match[0], cents })
+  }
+  if (out.length > 0) return out
+  // Folha com APENAS um valor monetário BR ("39,90") — exige 2 decimais.
+  for (const element of card.querySelectorAll('*')) {
+    if (element.querySelector('*') !== null) continue
+    const leaf = textOf(element)
+    if (!/^\s*[\d.]*\d+,\d{2}\s*$/.test(leaf)) continue
+    const cents = parsePriceToCents(leaf)
+    if (cents !== null) out.push({ text: leaf, quote: leaf, cents })
+  }
+  return out
 }
 
 function titleOf(card: HTMLElement, anchor: HTMLElement, selectors: readonly string[]): string | null {
@@ -179,6 +216,10 @@ interface PlatformDomProfile {
   titleSelectors: string[]
   priceSelectors: string[]
   imageSelectors: string[]
+  /** Preço "de" (riscado). Quando presente, seus valores entram no bolo de
+   * candidatos — o pipeline escolhe o MENOR como atual e o MAIOR (se maior)
+   * como original. */
+  originalPriceSelectors?: string[]
 }
 
 const DOM_PROFILES: Record<string, PlatformDomProfile> = {
@@ -208,10 +249,98 @@ const DOM_PROFILES: Record<string, PlatformDomProfile> = {
     imageSelectors: ['img.multi--image--1gX1N3y', 'img'],
   },
   shein: {
-    anchorSelectors: ['a[href*="/p-"]'],
+    anchorSelectors: ['a[href*="-p-"]'],
     titleSelectors: ['.product-title', '.goods-title', 'h3'],
     priceSelectors: ['.product-price', '.goods-price', '.price'],
     imageSelectors: ['img.product-image', 'img'],
+  },
+  // Temu: classes hasheadas; âncora pelo id (`-g-<id>` ou `goods_id=<id>`).
+  temu: {
+    anchorSelectors: ['a[href*="-g-"]', 'a[href*="goods_id"]'],
+    titleSelectors: ['h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[class*="goodsPrice"]', '[class*="price-"]', '[class*="marketPrice"]'],
+    imageSelectors: ['[class*="imgWrap"] img', 'img'],
+  },
+  tiktokshop: {
+    anchorSelectors: ['a[href*="/product/"]', 'a[href*="/view/product"]'],
+    titleSelectors: ['h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[class*="price"]', '[class*="amount"]'],
+    imageSelectors: ['img'],
+  },
+  // Lojas BR (Magalu, Awin, etc.): link de produto contém /p/, /produto/,
+  // /product/ ou /item/ — heurística estrutural decide o resto.
+  magalu: {
+    anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
+    titleSelectors: ['[data-testid*="title"]', 'h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[data-testid*="price"]', '[data-testid*="preco"]', '[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    imageSelectors: ['img'],
+  },
+  netshoes: {
+    anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
+    titleSelectors: ['[data-testid*="title"]', 'h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[data-testid*="price"]', '[data-testid*="preco"]', '[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    imageSelectors: ['img'],
+  },
+  casasbahia: {
+    anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
+    titleSelectors: ['[data-testid*="title"]', 'h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[data-testid*="price"]', '[data-testid*="preco"]', '[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    imageSelectors: ['img'],
+  },
+  pontofrio: {
+    anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
+    titleSelectors: ['[data-testid*="title"]', 'h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[data-testid*="price"]', '[data-testid*="preco"]', '[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    imageSelectors: ['img'],
+  },
+  americanas: {
+    anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
+    titleSelectors: ['[data-testid*="title"]', 'h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[data-testid*="price"]', '[data-testid*="preco"]', '[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    imageSelectors: ['img'],
+  },
+  kabum: {
+    anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
+    titleSelectors: ['[data-testid*="title"]', 'h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[data-testid*="price"]', '[data-testid*="preco"]', '[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    imageSelectors: ['img'],
+  },
+  centauro: {
+    anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
+    titleSelectors: ['[data-testid*="title"]', 'h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[data-testid*="price"]', '[data-testid*="preco"]', '[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    imageSelectors: ['img'],
+  },
+  renner: {
+    anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
+    titleSelectors: ['[data-testid*="title"]', 'h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[data-testid*="price"]', '[data-testid*="preco"]', '[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    imageSelectors: ['img'],
+  },
+  riachuelo: {
+    anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
+    titleSelectors: ['[data-testid*="title"]', 'h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[data-testid*="price"]', '[data-testid*="preco"]', '[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    imageSelectors: ['img'],
+  },
+  dafiti: {
+    anchorSelectors: ['a.product-box-link'],
+    titleSelectors: ['.product-box-title', '[data-testid*="title"]', 'h2', 'h3'],
+    priceSelectors: ['.product-box-price-to', '.product-box-price', '[data-testid*="price"]', '[class*="price"]', '[class*="preco"]'],
+    originalPriceSelectors: ['.product-box-price-from'],
+    imageSelectors: ['img'],
+  },
+  zattini: {
+    anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
+    titleSelectors: ['[data-testid*="title"]', 'h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[data-testid*="price"]', '[data-testid*="preco"]', '[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    imageSelectors: ['img'],
+  },
+  boticario: {
+    anchorSelectors: ['a[href*="/p/"]', 'a[href*="/produto/"]', 'a[href*="/product/"]', 'a[href*="/item/"]'],
+    titleSelectors: ['[data-testid*="title"]', 'h2', 'h3', '[class*="title"]', '[class*="name"]'],
+    priceSelectors: ['[data-testid*="price"]', '[data-testid*="preco"]', '[class*="price"]', '[class*="preco"]', '[class*="amount"]'],
+    imageSelectors: ['img'],
   },
 }
 
@@ -259,6 +388,14 @@ function cardsFromJsonLd(html: string, base: string, marketplace: string): RawCa
       if (typeof node !== 'object' || node === null) continue
       const record = node as Record<string, unknown>
       if (Array.isArray(record['@graph'])) queue.push(...record['@graph'])
+      // Listas de produtos (ex.: Shein `ItemList/itemListElement`): o produto
+      // pode estar em `item` ou ser o próprio elemento.
+      if (Array.isArray(record['itemListElement'])) {
+        for (const element of record['itemListElement']) {
+          const item = (element as Record<string, unknown> | null)?.['item'] ?? element
+          queue.push(item)
+        }
+      }
       const type = record['@type']
       const types = Array.isArray(type) ? type : [type]
       if (!types.includes('Product')) continue
@@ -282,7 +419,8 @@ function cardsFromJsonLd(html: string, base: string, marketplace: string): RawCa
           : 'BRL'
         const priceText = typeof priceRaw === 'number' ? String(priceRaw) : typeof priceRaw === 'string' ? priceRaw : ''
         const priceCents = parsePriceToCents(priceText)
-        const permalink = absoluteUrl(url, base)
+        // Algumas lojas (ex.: KaBuM!) põem a URL só na Offer, não no Product.
+        const permalink = absoluteUrl(url || String((offer as Record<string, unknown>)['url'] ?? ''), base)
         const imageUrl = absoluteUrl(imageRaw, base)
         if (!title || title.length < 8 || priceCents === null || !permalink || !imageUrl) continue
         cards.push({
@@ -441,6 +579,15 @@ function cardsFromDom(html: string, base: string, marketplace: string, maxScanne
       const card = closestCard(anchor)
       const title = titleOf(card, anchor, profile.titleSelectors)
       const priceCandidates = priceCandidatesOf(card, profile.priceSelectors)
+      if (profile.originalPriceSelectors !== undefined) {
+        for (const selector of profile.originalPriceSelectors) {
+          for (const element of card.querySelectorAll(selector)) {
+            const text = textOf(element)
+            const cents = parsePriceToCents(text)
+            if (text !== '' && cents !== null) priceCandidates.push({ text, quote: text, cents })
+          }
+        }
+      }
       if (!title || priceCandidates.length === 0) continue
       const currentPrice = [...priceCandidates].sort((left, right) => left.cents - right.cents)[0]
       if (!currentPrice) continue

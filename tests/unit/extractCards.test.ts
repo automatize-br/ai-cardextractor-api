@@ -126,3 +126,69 @@ window._dida_config_._init_data_= { data: {"itemList":{"content":[
   assert.equal(cards[0]?.permalink, 'https://www.aliexpress.com/item/1005001234567890.html')
   assert.equal(cards[0]?.imageUrl, 'https://ae-pic-a1.aliexpress-media.com/kf/a.jpg')
 })
+
+const temuHtml = `<!doctype html><html><body>
+<div class="goods-2xIL4">
+  <a href="https://www.temu.com/fone-bluetooth-g-60109999999999.html"><h3>Fone Bluetooth TWS Pro</h3></a>
+  <img class="imgWrap-1cwSB" src="https://img.kwcdn.com/product/x.jpg" />
+  <span class="goodsPrice-abc">R$ 89,90</span>
+</div>
+</body></html>`
+
+test('extrai card Temu por DOM (âncora -g-<id>)', () => {
+  const { cards } = extractRawCards(temuHtml, 'temu', 'https://www.temu.com/search_result.html?search_key=fone', 200)
+  assert.equal(cards.length, 1)
+  assert.equal(cards[0]?.externalProductId, '60109999999999')
+  assert.equal(cards[0]?.title, 'Fone Bluetooth TWS Pro')
+  assert.equal(cards[0]?.priceCents, 8990)
+  assert.equal(cards[0]?.currency, 'BRL')
+})
+
+test('lojas BR usam heurística: âncora /p/ vira card (Magalu)', () => {
+  const html = `<!doctype html><html><body>
+<div data-testid="product-card">
+  <a href="https://www.magazineluiza.com.br/fone-bluetooth/p/ab1234/"><h3>Fone Bluetooth TWS</h3></a>
+  <img src="https://a-static.mlcdn.com.br/x.jpg" />
+  <span class="price-template">R$ 149,90</span>
+</div>
+</body></html>`
+  const { cards } = extractRawCards(html, 'magalu', 'https://www.magazineluiza.com.br/busca/fone/', 200)
+  assert.equal(cards.length, 1)
+  assert.equal(cards[0]?.title, 'Fone Bluetooth TWS')
+  assert.equal(cards[0]?.priceCents, 14990)
+})
+
+const sheinJsonLdHtml = `<!doctype html><html><body>
+<script type="application/ld+json" data-sheinprivacy="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"ItemList","numberOfItems":1,"itemListElement":[{"@type":"ListItem","position":1,"item":{"@type":"Product","name":"Fone De Ouvido Sem Fio TWS Com Tela LED","url":"https://br.shein.com/-Fone-Tws-p-53459302.html","image":"https://img.ltwebstatic.com/x.png","sku":"53459302","offers":{"@type":"Offer","url":"/-Fone-Tws-p-53459302.html","price":"17.42","priceCurrency":"BRL"}}}]}]}</script>
+</body></html>`
+
+test('extrai card Shein de JSON-LD ItemList/itemListElement', () => {
+  const { cards } = extractRawCards(sheinJsonLdHtml, 'shein', 'https://br.shein.com/pdsearch/fone/', 200)
+  assert.equal(cards.length, 1)
+  assert.equal(cards[0]?.externalProductId, '53459302')
+  assert.equal(cards[0]?.priceCents, 1742)
+  assert.equal(cards[0]?.currency, 'BRL')
+})
+
+const magaluTestIdHtml = `<!doctype html><html><body>
+<div><a href="/fone-bluetooth-tws/p/abc123/ea/fobt/"><div data-testid="product-card-media-content"><img src="https://a-static.mlcdn.com.br/x.jpeg" /></div><div data-testid="card-content"><h3 data-testid="product-card-title">Fone Bluetooth TWS Pro</h3><p data-testid="product-card-price-final"><span>Preço R$ 89,90</span></p></div></a></div>
+</body></html>`
+
+test('extrai card Magalu por data-testid (classes utilitárias sem "price")', () => {
+  const { cards } = extractRawCards(magaluTestIdHtml, 'magalu', 'https://www.magazineluiza.com.br/busca/fone/', 200)
+  assert.equal(cards.length, 1)
+  assert.equal(cards[0]?.title, 'Fone Bluetooth TWS Pro')
+  assert.equal(cards[0]?.priceCents, 8990)
+})
+
+const dafitiHtml = `<!doctype html><html><body>
+<div class="product-box" data-sku="SA232SHF85XMS"><div class="product-box-image"><a href="https://www.dafiti.com.br/Tenis-Feminino-Santa-Lolla-15148814.html" class="product-box-link"><img src="https://static.dafiti.com.br/x.jpg" /></a></div><div class="product-box-title">Tênis Feminino Santa Lolla Casual</div><div class="product-box-price-to">R$ 186,99</div><div class="product-box-price-from">R$ 249,90</div></div>
+</body></html>`
+
+test('extrai card Dafiti (box dedicado, preço de/por)', () => {
+  const { cards } = extractRawCards(dafitiHtml, 'dafiti', 'https://www.dafiti.com.br/catalog/?q=fone', 200)
+  assert.equal(cards.length, 1)
+  assert.equal(cards[0]?.externalProductId, '15148814')
+  assert.equal(cards[0]?.priceCents, 18699)
+  assert.equal(cards[0]?.originalPriceCents, 24990)
+})
