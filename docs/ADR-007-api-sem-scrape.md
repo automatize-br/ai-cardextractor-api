@@ -57,7 +57,8 @@ no modelo da Shopee (Open API de afiliados).
 
 ## Rollout (ordem obrigatória)
 
-1. Deploy do worker (VPS `api-scrapping.vupia.com.br`): `.env` com   `EXTRACTOR_PLATFORMS=amazon,mercadolivre,aliexpress,shein,temu,tiktokshop,magalu,netshoes,casasbahia,pontofrio,americanas,kabum,centauro,renner,riachuelo,dafiti,zattini,boticario`
+1. Deploy do worker (VPS `api-scrapping.vupia.com.br`): `.env` com
+   `EXTRACTOR_PLATFORMS=amazon,mercadolivre,aliexpress,shein,temu,tiktokshop,magalu,netshoes,casasbahia,pontofrio,americanas,kabum,centauro,renner,riachuelo,dafiti,zattini,boticario`
    (sem `shopee`: vai pela API oficial). Confirmar no admin: Oracle online com as capabilities.
 2. Deploy da API (`AI_EXTRACTOR_MODE=pool`, `AI_EXTRACTOR_BULK_MIN_FLEET=1`;
    bulk pull exige `AI_EXTRACTOR_QUEUE_ENABLED=true`, senão a Etapa E usa o contrato v2 direto).
