@@ -64,6 +64,14 @@ Teste de regressão: `tests/integration/autoOfferSourceCooldown.test.ts`
 > O ciclo agendado NÃO tem o teto de 10min do manual (`MANUAL_SEARCH_TIMEOUT_MS`
 > só é passado no disparo manual) — o teto real passa a ser o próprio 120s do pool.
 
+**Follow-up (mesmo dia)** — após o deploy, o ciclo de 21:45 (ainda no código antigo)
+gravou cache `amazon/games · 0 rows`: o pool respondeu 200 com `no_cards` dentro dos
+15s. Como o `get()` do cache (API central) tratava qualquer entrada ≤6h como hit
+(mesmo vazia), os ciclos seguintes liam o cache e terminavam `NO_ELIGIBLE` SEM
+coletar — envenenamento de até 6h por (usuário, categoria, plataforma). Corrigido
+em `autoOfferSearchCacheRepository.ts`: **resultado vazio não é gravado** e
+**entrada vazia não é hit**. Para o worker não muda nada (o fix é 100% na API).
+
 ## 4. Orçamentos de tempo da coleta (referência API ↔ worker)
 
 | Variável (API central) | Default | Uso |
