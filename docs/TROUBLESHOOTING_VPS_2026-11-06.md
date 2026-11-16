@@ -265,3 +265,13 @@ GET /api/v1/admin/ai-extractor/instances
 - `docs/ENTREGA_POOL_EXTRACAO.md` — escopo e variáveis.
 - `docs/ADR-006-hub-push-sync-fila-pull-async.md` — arquitetura híbrida.
 - API: `docs/CONFIG_IA_EXTRACTOR.md` e `docs/CHECKLIST_ROLLOUT.md`.
+
+## 6. Atualização (16/11/2026) — orçamento de tempo é da API
+
+O §1.7 (unblocker 429 → Amazon `200 · 0 itens`) continua válido para rajadas, mas
+a falha **permanente** das automações Amazon tinha outra causa, do lado da API:
+ela dava **15s** de orçamento ao worker (`BULK_WAIT_MS`) enquanto a coleta Amazon
+leva 16–21s → `504 MODEL_TIMEOUT` → 0 ofertas. A API passou a usar o orçamento
+interativo (`AI_EXTRACTOR_POOL_SCRAPE_TIMEOUT_MS`, 120s). Detalhes e medições:
+**`docs/DIAGNOSTICO_DISPAROS_AMAZON_2026-11-16.md`** (gêmea na API central:
+`api/docs/DIAGNOSTICO_DISPAROS_AMAZON_2026-11-16.md` — atualize sempre as duas).
