@@ -72,6 +72,49 @@ coletar — envenenamento de até 6h por (usuário, categoria, plataforma). Corr
 em `autoOfferSearchCacheRepository.ts`: **resultado vazio não é gravado** e
 **entrada vazia não é hit**. Para o worker não muda nada (o fix é 100% na API).
 
+**Raiz definitiva (16/11/2026, ~22:35 UTC — `runNow` antecipado em prod)** — as causas
+anteriores eram reais, mas **não** as principais. Testando as URLs EXATAS das 4 categorias
+canônicas (`informatica`, `celulares`, `eletronicos`, `games`), todas apontavam para
+`/gp/bestsellers/...` e voltavam `no_cards` — sempre. Duas falhas independentes:
+
+1. **Bestsellers não tem cards para o perfil do worker**: HTML real com
+   `s-search-result = 0`, `a-price = 0` (preços em classes `p13n`), `rawCards = 0`.
+   `cardsFromDom` não tem âncora/preço no formato esperado; `cardsFromJsonLd` não
+   descreve a listagem. Nenhuma configuração de tempo resolveria.
+2. **Limite de bytes do trimmer (default 1 MB)**: as páginas de busca `/s?k=` pesadas
+   (1,5–2,4 MB) não cabiam depois do trim → fonte descartada com
+   `error: html_too_large_after_trim` E `qualityOf()` reportando `no_cards`
+   (`NO_CARDS_EXTRACTED`) — a API tratava como "coleta ok sem ofertas" e não
+   re-tentava. Medições (worker + unblocker, 16/11):
+
+| URL | bytes recebidos | trimmer | cards |
+|---|---|---|---|
+| `/s?k=Informática` | 1,19 MB | OK | **56 ofertas** ✅ |
+| `/s?k=Celulares` | 2,07 MB | `tooLarge` | 48 cards no HTML, 0 entregues ❌ |
+| `/s?k=Eletrônicos` | 1,60 MB | `tooLarge` | 48 cards no HTML, 0 entregues ❌ |
+| `/s?k=Games` | 1,51 MB | `tooLarge` | 50 cards no HTML, 0 entregues ❌ |
+| `/gp/bestsellers/computers` | 0,68 MB | OK | **0 cards** (estrutura `p13n`) ❌ |
+
+Extrator do worker rodado LOCALMENTE no mesmo HTML salvo: 56/48/48/50 cards — o único
+bloqueio nas páginas de busca era o limite de bytes.
+
+**Correções (lado worker):**
+
+- `EXTRACTOR_MAX_HTML_BYTES`: default **1 MB → 4 MB** (`src/config/env.ts`). Cobre as
+  páginas de busca Amazon com folga; o trimmer continua removendo style/svg/comentários/
+  scripts não-JSON antes de medir.
+- `qualityOf()` (`remoteExtractionService.ts`): `html_too_large_after_trim` agora é
+  `unavailable` (`SOURCE_UNAVAILABLE`) — nunca mais `no_cards`. A API passa a tratar
+  como falha de fonte (cooldown), não como resultado vazio legítimo.
+
+**Correções (lado API central, para contexto):** categorias Amazon passaram a usar
+`/s?k=<termo do nó>` (bestsellers abandonadas) e há retry único quando o pool volta
+`no_cards`. A busca textual também é filtrada por categoria (`categoryNodeAccepts`),
+então a relevância é preservada.
+
+Testes: worker 169/169 (novo: HTML acima do trimmer ⇒ `unavailable`) · API 1560/1560
+(mapeamento Amazon, retry, cache vazio) · typecheck/build limpos nos dois.
+
 ## 4. Orçamentos de tempo da coleta (referência API ↔ worker)
 
 | Variável (API central) | Default | Uso |
@@ -82,7 +125,8 @@ em `autoOfferSearchCacheRepository.ts`: **resultado vazio não é gravado** e
 
 No worker (`ai-extractor-api`): `EXTRACTOR_SCRAPE_TIMEOUT_MS` é o teto da própria
 extração (o controller faz `race` até `min(EXTRACTOR_SCRAPE_TIMEOUT_MS, deadlineAt - now)`),
-`SCRAPE_UNBLOCKER_TIMEOUT_MS` limita o unblocker, `EXTRACTOR_CAPACITY` limita
+`SCRAPE_UNBLOCKER_TIMEOUT_MS` limita o unblocker, `EXTRACTOR_MAX_HTML_BYTES`
+(4 MB desde 16/11/2026; era 1 MB) é o teto do HTML pós-trim, `EXTRACTOR_CAPACITY` limita
 extrações simultâneas (429 `EXTRACTOR_BUSY` com `Retry-After: 2`).
 
 Latências medidas em prod (16/11/2026, worker do pool): `/deals` 16,7s ·

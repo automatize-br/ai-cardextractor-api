@@ -275,3 +275,12 @@ leva 16–21s → `504 MODEL_TIMEOUT` → 0 ofertas. A API passou a usar o orça
 interativo (`AI_EXTRACTOR_POOL_SCRAPE_TIMEOUT_MS`, 120s). Detalhes e medições:
 **`docs/DIAGNOSTICO_DISPAROS_AMAZON_2026-11-16.md`** (gêmea na API central:
 `api/docs/DIAGNOSTICO_DISPAROS_AMAZON_2026-11-16.md` — atualize sempre as duas).
+
+### 6.1 Limite de HTML (16/11/2026, noite)
+
+O teto padrão `EXTRACTOR_MAX_HTML_BYTES` era **1 MB** — páginas de busca Amazon pesadas
+(1,5–2,4 MB pós-trim) eram descartadas com `html_too_large_after_trim` e o serviço
+reportava `no_cards` (a API lia como "coleta ok sem ofertas"). Agora o default é **4 MB**
+e `html_too_large_after_trim` mapeia para `unavailable` (`SOURCE_UNAVAILABLE`).
+Se voltar a aparecer `no_cards` em massa, checar `sources[].error` na resposta de
+`/api/v1/extract-offers` antes de culpar o anti-bot.
