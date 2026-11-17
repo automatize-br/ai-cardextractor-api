@@ -181,6 +181,29 @@ function priceCandidatesFromText(card: HTMLElement): PriceCandidate[] {
   return out
 }
 
+/**
+ * Valores em contexto de PARCELA no card ("em até 10x de R$ 148,05 sem juros",
+ * "R$ 148,05/mês"). Não podem virar preço atual/original: na busca Amazon o
+ * pipeline escolhia o MENOR candidato como atual → mensagem "De R$ 3.299,00
+ * por R$ 148,05 · 96% OFF" (incidente 16/11/2026, parcela de 10x).
+ */
+function installmentCentsOf(card: HTMLElement): Set<number> {
+  const text = textOf(card).replace(/\s+/g, ' ')
+  const cents = new Set<number>()
+  const perInstallment = /(\d{1,2})\s*x\s*(?:de|sem|por)?\s*(?:R\$\s*)?([\d.,]{1,14})/gi
+  let match: RegExpExecArray | null
+  while ((match = perInstallment.exec(text)) !== null) {
+    const value = parsePriceToCents(match[2] ?? '')
+    if (value !== null) cents.add(value)
+  }
+  const monthly = /R\$\s*([\d.,]{1,14})\s*\/\s*m[eê]s/gi
+  while ((match = monthly.exec(text)) !== null) {
+    const value = parsePriceToCents(match[1] ?? '')
+    if (value !== null) cents.add(value)
+  }
+  return cents
+}
+
 function titleOf(card: HTMLElement, anchor: HTMLElement, selectors: readonly string[]): string | null {
   for (const selector of selectors) {
     const text = textOf(card.querySelector(selector))
@@ -220,6 +243,10 @@ interface PlatformDomProfile {
    * candidatos — o pipeline escolhe o MENOR como atual e o MAIOR (se maior)
    * como original. */
   originalPriceSelectors?: string[]
+  /** Só Amazon (opt-in): descarta candidatos em contexto de PARCELA
+   * ("10x de R$ 148,05", "R$ 148,05/mês"). Deliberadamente NÃO é padrão — em
+   * outras lojas o valor parcelado pode ser a única representação do preço. */
+  ignoreInstallmentPrices?: boolean
 }
 
 const DOM_PROFILES: Record<string, PlatformDomProfile> = {
@@ -228,6 +255,7 @@ const DOM_PROFILES: Record<string, PlatformDomProfile> = {
     titleSelectors: ['h2', '[data-cy="title-recipe"]', '.a-size-base-plus', '.a-size-medium'],
     priceSelectors: ['.a-price .a-offscreen', '.a-offscreen', '.a-price-whole'],
     imageSelectors: ['img.s-image', 'img'],
+    ignoreInstallmentPrices: true,
   },
   mercadolivre: {
     anchorSelectors: ['a[href*="/MLB"]', 'a[href*="/p/MLB"]', 'a.poly-component__title'],
@@ -589,10 +617,19 @@ function cardsFromDom(html: string, base: string, marketplace: string, maxScanne
         }
       }
       if (!title || priceCandidates.length === 0) continue
-      const currentPrice = [...priceCandidates].sort((left, right) => left.cents - right.cents)[0]
+      // Amazon (opt-in no perfil): parcela nunca é preço do produto — remove
+      // candidatos em contexto "Nx de/sem R$ ..." ou "R$ .../mês". Nas demais
+      // plataformas a lista fica intocada (o menor pode ser a única
+      // representação do preço). Se o filtro zerar tudo, mantém a lista.
+      const installments = profile.ignoreInstallmentPrices === true ? installmentCentsOf(card) : null
+      const nonInstallments = installments === null
+        ? priceCandidates
+        : priceCandidates.filter((candidate) => !installments.has(candidate.cents))
+      const usablePrices = nonInstallments.length > 0 ? nonInstallments : priceCandidates
+      const currentPrice = [...usablePrices].sort((left, right) => left.cents - right.cents)[0]
       if (!currentPrice) continue
       const original =
-        [...priceCandidates]
+        [...usablePrices]
           .map((candidate) => candidate.cents)
           .filter((cents) => cents > currentPrice.cents)
           .sort((left, right) => right - left)[0] ?? null
