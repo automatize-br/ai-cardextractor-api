@@ -123,11 +123,13 @@ escolhia o MENOR candidato como preço atual → `De R$ 3.299,00 por R$ 148,05 �
 Corrigido no worker (`extractCards.ts`): `installmentCentsOf()` identifica valores em
 contexto de parcela (`Nx de/sem`, `R$ .../mês`) e os remove dos candidatos de preço
 (com fallback para a lista original quando o filtro zeraria tudo). **Opt-in por perfil
-(`ignoreInstallmentPrices`), ligado SÓ na Amazon** — outras lojas mantêm o
-comportamento antigo intacto (teste dedicado garante isso). **Opt-in por perfil
-(`ignoreInstallmentPrices`), ligado SÓ na Amazon** — outras lojas mantêm o
-comportamento antigo intacto (teste dedicado garante isso). Testes: parcela em
-`.a-price` ⇒ preço atual = à vista; `/mês` também ignorado. Com isso, o "desconto" passa
+(`ignoreInstallmentPrices`)** — ligado na **Amazon** (16/11) e no **Mercado Livre**
+(17/11, incidente com o MESMO padrão: a parcela "em 12x R$ 52,21" usa o MESMO
+componente `.andes-money-amount` do preço à vista → "De R$ 899,00 por R$ 52,21 ·
+94% OFF" em 16 disparos; 19 em 36h com ML+Amazon). Outras lojas (Shopee é o teste de
+discriminação) mantêm o comportamento antigo intacto. Testes: parcela em `.a-price`
+⇒ preço atual = à vista; `/mês` também ignorado; ML com parcela+à vista+lista ⇒
+à vista vence; card só com parcela mantém a lista. Com isso, o "desconto" passa
 a ser o real (ou zero, quando a página só tem parcela — melhor que promoção falsa).
 
 ## 4. Orçamentos de tempo da coleta (referência API ↔ worker)

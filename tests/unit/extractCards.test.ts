@@ -251,3 +251,59 @@ test('filtro de parcela é SÓ da Amazon: em outra loja o comportamento antigo p
   assert.equal(cards[0]?.priceCents, 1666, 'fora da Amazon nada muda (menor candidato segue como atual)')
   assert.equal(cards[0]?.originalPriceCents, 19990)
 })
+
+test('Mercado Livre: parcela no mesmo componente `.andes-money-amount` nunca é o preço (incidente 17/11)', () => {
+  // Estrutura REAL do card ML de busca: preço à vista + PARCELA no MESMO
+  // componente + preço de lista riscado. Antes do filtro, o MENOR candidato
+  // era a parcela → "De R$ 899,00 por R$ 52,21 · 94% OFF" (Philco PCX6700).
+  const html = `<!doctype html><html><body>
+<a href="https://www.mercadolivre.com.br/caixa-de-som-philco-pcx6700-amplificada-650w-ex-bass/p/MLB12345678">
+  <img class="poly-component__picture" src="https://http2.mlstatic.com/x.jpg" />
+  <h2 class="poly-component__title">Caixa de Som Philco PCX6700 Amplificada 650W Ex Bass</h2>
+  <s class="andes-money-amount andes-money-amount--previous">
+    <span class="andes-money-amount__fraction">899</span><span class="andes-money-amount__cents">00</span>
+  </s>
+  <span class="andes-money-amount">
+    <span class="andes-money-amount__fraction">626</span><span class="andes-money-amount__cents">52</span>
+  </span>
+  <p class="poly-component__installments">em 12x R$ 52,21 sem juros</p>
+</a>
+</body></html>`
+  const { cards } = extractRawCards(html, 'mercadolivre', 'https://lista.mercadolivre.com.br/caixa-de-som', 200)
+  assert.equal(cards.length, 1)
+  assert.equal(cards[0]?.priceCents, 62652, 'preço à vista vence; a parcela (5221) é descartada')
+  assert.equal(cards[0]?.originalPriceCents, 89900)
+  assert.equal(cards[0]?.priceQuote, '62652', 'quote é o texto VERBATIM do nó DOM (fração+centavos sem vírgula)')
+})
+
+test('Mercado Livre: "R$ X/mês" também é descartado; card só com parcela mantém a lista (fallback)', () => {
+  const monthly = `<!doctype html><html><body>
+<a href="https://www.mercadolivre.com.br/tv/p/MLB99999999">
+  <img class="poly-component__picture" src="https://http2.mlstatic.com/y.jpg" />
+  <h2 class="poly-component__title">Smart TV LG 55 polegadas 4K</h2>
+  <span class="andes-money-amount">
+    <span class="andes-money-amount__fraction">3.239</span><span class="andes-money-amount__cents">88</span>
+  </span>
+  <p class="poly-component__installments">R$ 269,99/mês</p>
+</a>
+</body></html>`
+  const { cards } = extractRawCards(monthly, 'mercadolivre', 'https://lista.mercadolivre.com.br/tv', 200)
+  assert.equal(cards.length, 1)
+  assert.equal(cards[0]?.priceCents, 323988, 'mensalidade (26999) descartada; preço à vista é o atual')
+
+  // Card SEM preço à vista (só a parcela, que no ML real também vem no
+  // componente `.andes-money-amount`) → filtro zeraria a lista; o pipeline
+  // mantém a lista cheia (a parcela é a única representação do preço).
+  const onlyInstallment = `<!doctype html><html><body>
+<a href="https://www.mercadolivre.com.br/kit/p/MLB88888888">
+  <img class="poly-component__picture" src="https://http2.mlstatic.com/z.jpg" />
+  <h2 class="poly-component__title">Kit Instalação Suporte Parede TV</h2>
+  <p class="poly-component__installments">em 10x
+    <span class="andes-money-amount"><span class="andes-money-amount__fraction">24</span><span class="andes-money-amount__cents">90</span></span>
+    sem juros</p>
+</a>
+</body></html>`
+  const fallback = extractRawCards(onlyInstallment, 'mercadolivre', 'https://lista.mercadolivre.com.br/kit', 200)
+  assert.equal(fallback.cards.length, 1)
+  assert.equal(fallback.cards[0]?.priceCents, 2490, 'sem preço à vista, a parcela é a única representação')
+})
