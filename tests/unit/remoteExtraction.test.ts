@@ -186,3 +186,40 @@ test('device do unblocker: netshoes usa mobile (desktop leva 403)', async () => 
   assert.equal(unblockerDeviceType('temu'), 'desktop')
   assert.equal(unblockerDeviceType('amazon'), 'desktop')
 })
+
+test('serviço remoto: HTML acima do trimmer ≠ no_cards (fonte indisponível)', async () => {
+  const { env } = await import('../../src/config/env.ts')
+  const original = env.EXTRACTOR_MAX_HTML_BYTES
+  ;(env as unknown as { EXTRACTOR_MAX_HTML_BYTES: number }).EXTRACTOR_MAX_HTML_BYTES = 200
+  let extractCalls = 0
+  try {
+    const huge = HTML + 'x'.repeat(5_000)
+    const result = await RemoteExtractionService.extract(
+      {
+        marketplace: 'mercadolivre',
+        urls: ['https://lista.mercadolivre.com.br/a'],
+        profile: 'cards',
+        mode: 'off',
+        maxScanned: 200,
+        maxCards: 200,
+        maxLlmCards: 0,
+        deadlineAt: Date.now() + 30_000,
+      },
+      {
+        fetchPage: async () => ({ html: huge, source: 'unblocker', bytes: huge.length, ms: 1 }),
+        extract: async () => {
+          extractCalls += 1
+          throw new Error('não deveria extrair fonte acima do limite')
+        },
+      },
+    )
+    assert.equal(extractCalls, 0)
+    assert.equal(result.sources[0]?.error, 'html_too_large_after_trim')
+    // Incidente 16/11/2026: era reportado como `no_cards` e a API tratava como
+    // "coleta ok sem ofertas". Agora é falha de fonte (retry/cooldown na API).
+    assert.equal(result.quality, 'unavailable')
+    assert.equal(result.reason, 'SOURCE_UNAVAILABLE')
+  } finally {
+    ;(env as unknown as { EXTRACTOR_MAX_HTML_BYTES: number }).EXTRACTOR_MAX_HTML_BYTES = original
+  }
+})

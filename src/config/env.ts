@@ -158,7 +158,11 @@ export const env = {
   EXTRACTOR_JOBS_RENEW_MS: readInt('EXTRACTOR_JOBS_RENEW_MS', 20_000),
   EXTRACTOR_CAPACITY_MAX: readInt('EXTRACTOR_CAPACITY_MAX', 2),
   EXTRACTOR_HEARTBEAT_INTERVAL_MS: readInt('EXTRACTOR_HEARTBEAT_INTERVAL_MS', 30000),
-  EXTRACTOR_MAX_HTML_BYTES: readInt('EXTRACTOR_MAX_HTML_BYTES', 1_048_576),
+  // Páginas de busca Amazon/ML pós-trim ficam entre 1,1 e 2,4 MB (medido em
+  // 16/11/2026); o limite de 1 MB descartava a fonte inteira como "no_cards"
+  // (html_too_large_after_trim) — era a causa dos disparos vazios das
+  // categorias canônicas. 4 MB cobre com folga sem inchar a memória.
+  EXTRACTOR_MAX_HTML_BYTES: readInt('EXTRACTOR_MAX_HTML_BYTES', 4_194_304),
   EXTRACTOR_MAX_HTML_GZIP_BYTES: readInt('EXTRACTOR_MAX_HTML_GZIP_BYTES', 524_288),
   EXTRACTOR_BODY_LIMIT_BYTES: readInt('EXTRACTOR_BODY_LIMIT_BYTES', 1_258_291),
   EXTRACTOR_MAX_SCANNED: readInt('EXTRACTOR_MAX_SCANNED', 200),

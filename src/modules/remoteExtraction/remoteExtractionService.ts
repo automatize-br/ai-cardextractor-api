@@ -75,6 +75,10 @@ function dedupe(offers: RemoteOffer[]): RemoteOffer[] {
 function qualityOf(offers: number, sources: SourceResult[]): RemoteQuality {
   if (offers > 0) return sources.some((source) => source.error !== null) ? 'partial' : 'ok'
   if (sources.some((source) => source.error === 'blocked')) return 'blocked'
+  // Página acima do limite do trimmer NÃO é "sem cards": é falha de coleta.
+  // Reportar como `no_cards` fazia a API tratar como resultado vazio legítimo
+  // (diagnóstico enganoso no incidente de 16/11/2026).
+  if (sources.some((source) => source.error === 'html_too_large_after_trim')) return 'unavailable'
   if (sources.some((source) => source.error === 'unavailable')) return 'unavailable'
   return 'no_cards'
 }
