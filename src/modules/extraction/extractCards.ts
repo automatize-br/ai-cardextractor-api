@@ -243,9 +243,12 @@ interface PlatformDomProfile {
    * candidatos — o pipeline escolhe o MENOR como atual e o MAIOR (se maior)
    * como original. */
   originalPriceSelectors?: string[]
-  /** Só Amazon (opt-in): descarta candidatos em contexto de PARCELA
-   * ("10x de R$ 148,05", "R$ 148,05/mês"). Deliberadamente NÃO é padrão — em
-   * outras lojas o valor parcelado pode ser a única representação do preço. */
+  /** Lojas onde a PARCELA nunca é preço do produto ("10x de R$ 148,05",
+   * "R$ 148,05/mês"): descarta candidatos em contexto de parcela. Amazon
+   * (desde 16/11) e Mercado Livre (desde 17/11 — a parcela usa o MESMO
+   * componente `.andes-money-amount` do preço à vista). Deliberadamente NÃO é
+   * padrão global — em outras lojas o valor parcelado pode ser a única
+   * representação do preço (Shopee é o teste de discriminação). */
   ignoreInstallmentPrices?: boolean
 }
 
@@ -263,6 +266,12 @@ const DOM_PROFILES: Record<string, PlatformDomProfile> = {
     // O preço COMPLETO (fração + centavos) vem antes da fração isolada.
     priceSelectors: ['.andes-money-amount', '.price-tag', '.andes-money-amount__fraction', '.price-tag-fraction'],
     imageSelectors: ['img.poly-component__picture', 'img.ui-search-result-image__element', 'img'],
+    // Incidente 17/11/2026 (mesmo padrão do da Amazon): o card ML renderiza a
+    // PARCELA ("em 12x R$ 52,21") com o MESMO componente `.andes-money-amount`
+    // do preço à vista → o menor candidato era a parcela e o disparo saía
+    // "De R$ 899,00 por R$ 52,21 · 94% OFF". ML sempre exibe o preço à vista
+    // junto da parcela no card, então o filtro é seguro aqui também.
+    ignoreInstallmentPrices: true,
   },
   shopee: {
     anchorSelectors: ['a[href*="-i."]', 'a[href*="/product/"]'],
@@ -617,10 +626,11 @@ function cardsFromDom(html: string, base: string, marketplace: string, maxScanne
         }
       }
       if (!title || priceCandidates.length === 0) continue
-      // Amazon (opt-in no perfil): parcela nunca é preço do produto — remove
-      // candidatos em contexto "Nx de/sem R$ ..." ou "R$ .../mês". Nas demais
-      // plataformas a lista fica intocada (o menor pode ser a única
-      // representação do preço). Se o filtro zerar tudo, mantém a lista.
+      // Amazon/Mercado Livre (opt-in no perfil): parcela nunca é preço do
+      // produto — remove candidatos em contexto "Nx de/sem R$ ..." ou
+      // "R$ .../mês". Nas demais plataformas a lista fica intocada (o menor
+      // pode ser a única representação do preço). Se o filtro zerar tudo,
+      // mantém a lista.
       const installments = profile.ignoreInstallmentPrices === true ? installmentCentsOf(card) : null
       const nonInstallments = installments === null
         ? priceCandidates
