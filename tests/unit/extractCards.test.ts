@@ -192,3 +192,62 @@ test('extrai card Dafiti (box dedicado, preço de/por)', () => {
   assert.equal(cards[0]?.priceCents, 18699)
   assert.equal(cards[0]?.originalPriceCents, 24990)
 })
+
+// REGRESSÃO (prod 16/11/2026): o card da busca Amazon traz a PARCELA dentro de
+// `.a-price` ("em até 10x de R$ 148,05 sem juros"). O pipeline escolhia o MENOR
+// candidato como preço atual → "De R$ 3.299,00 por R$ 148,05 · 96% OFF".
+const amazonInstallmentHtml = `<!doctype html><html><body>
+<div data-component-type="s-search-result">
+  <a href="https://www.amazon.com.br/Celular-Samsung-Galaxy-A37/dp/B0GVSZXP9M/ref=sr_1_1">
+    <img class="s-image" src="https://m.media-amazon.com/images/I/a37.jpg" />
+    <h2><span>Celular Samsung Galaxy A37 5G 128GB, 6GB RAM, Câmera 50MP</span></h2>
+    <span class="a-price a-text-price"><span class="a-offscreen">R$ 3.299,00</span></span>
+    <span class="a-price"><span class="a-offscreen">R$ 1.480,50</span></span>
+    <span class="a-size-base a-color-secondary">em até 10x de <span class="a-price"><span class="a-offscreen">R$ 148,05</span></span> sem juros</span>
+  </a>
+</div>
+</body></html>`
+
+test('Amazon: parcela ("10x de R$ 148,05") NÃO vira preço atual', () => {
+  const { cards } = extractRawCards(amazonInstallmentHtml, 'amazon', 'https://www.amazon.com.br/s?k=Celulares', 200)
+  assert.equal(cards.length, 1)
+  assert.equal(cards[0]?.priceCents, 148050, 'preço atual = à vista (R$ 1.480,50), não a parcela')
+  assert.equal(cards[0]?.originalPriceCents, 329900)
+})
+
+test('Amazon: preço "/mês" também é ignorado como preço atual', () => {
+  const html = `<!doctype html><html><body>
+<div data-component-type="s-search-result">
+  <a href="https://www.amazon.com.br/produto/dp/B0MONTH001">
+    <img class="s-image" src="https://m.media-amazon.com/images/I/m.jpg" />
+    <h2><span>Smartwatch Amazfit Bip 6 GPS</span></h2>
+    <span class="a-price"><span class="a-offscreen">R$ 529,00</span></span>
+    <span class="a-size-base">R$ 44,08/mês com cartão</span>
+  </a>
+</div>
+</body></html>`
+  const { cards } = extractRawCards(html, 'amazon', 'https://www.amazon.com.br/s?k=Games', 200)
+  assert.equal(cards.length, 1)
+  assert.equal(cards[0]?.priceCents, 52900)
+})
+
+test('filtro de parcela é SÓ da Amazon: em outra loja o comportamento antigo permanece', () => {
+  // Card com DOIS valores no mesmo seletor: preço cheio + "12x de R$ ...".
+  // Com o filtro (opt-in) vazando para outras lojas, o resultado mudaria; o
+  // comportamento fora da Amazon tem de ficar EXATAMENTE como antes (menor
+  // candidato = preço atual).
+  const html = `<!doctype html><html><body>
+<div class="shopee-card" data-sqe="item">
+  <a href="https://shopee.com.br/Fone-Bluetooth-i.123.456">
+    <img data-sqe="img" src="https://cf.shopee.com.br/x.jpg" />
+    <div class="line-clamp-2">Fone Bluetooth TWS Pro</div>
+    <div class="truncate">R$ 199,90</div>
+    <div class="truncate">12x de R$ 16,66</div>
+  </a>
+</div>
+</body></html>`
+  const { cards } = extractRawCards(html, 'shopee', 'https://shopee.com.br/search?keyword=fone', 200)
+  assert.equal(cards.length, 1)
+  assert.equal(cards[0]?.priceCents, 1666, 'fora da Amazon nada muda (menor candidato segue como atual)')
+  assert.equal(cards[0]?.originalPriceCents, 19990)
+})

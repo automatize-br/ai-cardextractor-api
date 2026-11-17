@@ -115,6 +115,21 @@ então a relevância é preservada.
 Testes: worker 169/169 (novo: HTML acima do trimmer ⇒ `unavailable`) · API 1560/1560
 (mapeamento Amazon, retry, cache vazio) · typecheck/build limpos nos dois.
 
+
+**Bug de preço exposto pela busca (16/11/2026, 02:22 UTC)** — com as ofertas voltando,
+o primeiro ciclo real enviou 3 iPhones… de R$ 148,05: o card da busca Amazon traz a
+**parcela** dentro de `.a-price` ("em até 10x de R$ 148,05 sem juros"). O pipeline
+escolhia o MENOR candidato como preço atual → `De R$ 3.299,00 por R$ 148,05 · 96% OFF`.
+Corrigido no worker (`extractCards.ts`): `installmentCentsOf()` identifica valores em
+contexto de parcela (`Nx de/sem`, `R$ .../mês`) e os remove dos candidatos de preço
+(com fallback para a lista original quando o filtro zeraria tudo). **Opt-in por perfil
+(`ignoreInstallmentPrices`), ligado SÓ na Amazon** — outras lojas mantêm o
+comportamento antigo intacto (teste dedicado garante isso). **Opt-in por perfil
+(`ignoreInstallmentPrices`), ligado SÓ na Amazon** — outras lojas mantêm o
+comportamento antigo intacto (teste dedicado garante isso). Testes: parcela em
+`.a-price` ⇒ preço atual = à vista; `/mês` também ignorado. Com isso, o "desconto" passa
+a ser o real (ou zero, quando a página só tem parcela — melhor que promoção falsa).
+
 ## 4. Orçamentos de tempo da coleta (referência API ↔ worker)
 
 | Variável (API central) | Default | Uso |
